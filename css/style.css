@@ -1,0 +1,218 @@
+:root {
+  --color-primary: #2c5f6f;
+  --color-primary-dark: #1e4650;
+  --color-bg: #f4f6f7;
+  --color-surface: #ffffff;
+  --color-border: #dde3e5;
+  --color-text: #1f2b2e;
+  --color-text-muted: #5c6b6f;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+button, a, .nav-item, [role="button"] {
+  cursor: pointer;
+}
+
+/* Login screen */
+
+#loginScreen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+#loginScreen h1 {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+#loginScreen p {
+  color: var(--color-text-muted);
+  margin-bottom: 28px;
+  max-width: 360px;
+}
+
+#googleSignInButton {
+  margin-bottom: 16px;
+}
+
+#loginError {
+  color: #b3261e;
+  max-width: 360px;
+  font-size: 0.9rem;
+}
+
+/* Portal shell */
+
+#portal {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header.portal-header {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+header.portal-header h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-info img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+#signOutButton {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+}
+
+#signOutButton:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+nav.portal-nav {
+  display: flex;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.nav-item {
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.nav-item.active {
+  color: var(--color-primary-dark);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+/* Home tab */
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  max-width: 720px;
+}
+
+.tile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-decoration: none;
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tile:hover {
+  border-color: var(--color-primary);
+}
+
+.tile .tile-icon {
+  font-size: 1.6rem;
+}
+
+.tile .tile-title {
+  font-weight: 600;
+}
+
+.tile .tile-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Embedded frames */
+
+.frame-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.frame-toolbar a {
+  font-size: 0.85rem;
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.frame-toolbar a:hover {
+  text-decoration: underline;
+}
+
+.embed-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 60vh;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+@media (max-width: 700px) {
+  header.portal-header {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .tab-panel {
+    padding: 14px;
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strata Committee Portal</title>
+  <link rel="stylesheet" href="css/style.css?v=1" />
+  <script src="https://accounts.google.com/gsi/client" defer></script>
+</head>
+<body>
+
+  <section id="loginScreen">
+    <h1 data-portal-name>Strata Committee Portal</h1>
+    <p>Sign in with the Google account the committee has on file to reach the shared documents, to-do list and Slack.</p>
+    <div id="googleSignInButton"></div>
+    <p id="loginError" hidden></p>
+  </section>
+
+  <div id="portal" hidden>
+    <header class="portal-header">
+      <h1 data-portal-name>Strata Committee Portal</h1>
+      <div class="user-info">
+        <img id="userAvatar" alt="" />
+        <span id="userName"></span>
+        <button id="signOutButton" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <nav class="portal-nav">
+      <div class="nav-item active" data-tab="home" role="button">Home</div>
+      <div class="nav-item" data-tab="documents" role="button">Documents</div>
+      <div class="nav-item" data-tab="todo" role="button">To-Do List</div>
+    </nav>
+
+    <main>
+      <div class="tab-panel" data-tab="home">
+        <div class="tile-grid">
+          <div class="tile" data-tab="documents" role="button" onclick="showTab('documents')">
+            <span class="tile-icon">📁</span>
+            <span class="tile-title">Documents</span>
+            <span class="tile-desc">Shared Google Drive folder</span>
+          </div>
+          <div class="tile" data-tab="todo" role="button" onclick="showTab('todo')">
+            <span class="tile-icon">✅</span>
+            <span class="tile-title">To-Do List</span>
+            <span class="tile-desc">Shared Google Sheet</span>
+          </div>
+          <a class="tile" id="slackLink" href="#" target="_blank" rel="noopener">
+            <span class="tile-icon">💬</span>
+            <span class="tile-title">Slack</span>
+            <span class="tile-desc">Open the committee workspace</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-tab="documents" hidden>
+        <div class="frame-toolbar">
+          <a id="driveOpenLink" href="#" target="_blank" rel="noopener">Open in Google Drive &#8599;</a>
+        </div>
+        <iframe id="driveFrame" class="embed-frame" title="Shared documents"></iframe>
+      </div>
+
+      <div class="tab-panel" data-tab="todo" hidden>
+        <div class="frame-toolbar">
+          <a id="sheetOpenLink" href="#" target="_blank" rel="noopener">Open in Google Sheets &#8599;</a>
+        </div>
+        <iframe id="sheetFrame" class="embed-frame" title="To-do list"></iframe>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js?v=1"></script>
+  <script src="js/auth.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
+</body>
+</html>
