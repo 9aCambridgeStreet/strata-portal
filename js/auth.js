@@ -1,10 +1,6 @@
-// Sign-in with Google, using Google Identity Services (loaded client-side,
-// no server involved). Checks the signed-in email against CONFIG.allowedEmails.
-//
-// This check happens entirely in the browser, so it is a convenience gate,
-// not real security. The actual protection for documents and the to-do list
-// is whatever the Drive folder and Sheet are shared with in Google itself.
-// Keep that sharing list in sync with CONFIG.allowedEmails.
+// Sign-in with Google. Membership is decided by the Apps Script in apps-script/,
+// which verifies the Google token and checks the committee Drive folder's sharing
+// list, so sharing that folder is the only membership list to maintain.
 
 const AUTH_STORAGE_KEY = 'strataPortal.session';
 
@@ -46,15 +42,29 @@ function clearSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
-function isEmailAllowed(email) {
-  return CONFIG.allowedEmails.map((e) => e.toLowerCase()).includes(email.toLowerCase());
+async function checkMembership(credential) {
+  // A plain-text body keeps this a simple request, so the browser sends no CORS preflight.
+  const res = await fetch(CONFIG.membershipUrl, {
+    method: 'POST',
+    body: JSON.stringify({ token: credential }),
+  });
+  return res.json();
 }
 
-function handleCredentialResponse(response) {
+async function handleCredentialResponse(response) {
   const profile = decodeJwt(response.credential);
+  showLoginStatus('Checking committee membership...');
 
-  if (!isEmailAllowed(profile.email)) {
-    showLoginError(`${profile.email} is not on the committee access list. Ask an existing member to add you.`);
+  let result;
+  try {
+    result = await checkMembership(response.credential);
+  } catch {
+    showLoginError('Could not check committee membership right now. Please try again in a moment.');
+    return;
+  }
+
+  if (!result.member) {
+    showLoginError(`${profile.email} doesn't have access to the committee documents folder. Ask the secretary to share it with you.`);
     return;
   }
 

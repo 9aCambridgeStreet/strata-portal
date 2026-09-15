@@ -57,6 +57,15 @@ button, a, .nav-item, [role="button"] {
   font-size: 0.9rem;
 }
 
+#loginError.is-status {
+  color: var(--color-text-muted);
+}
+
+.login-note {
+  margin-top: 24px;
+  font-size: 0.8rem;
+}
+
 /* Portal shell */
 
 #portal {

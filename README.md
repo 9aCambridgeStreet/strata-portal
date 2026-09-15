@@ -1,89 +1,62 @@
-# Strata Committee Portal
+# 9A Cambridge St Committee Portal
 
-A single static site (no server, no build step) that gives the committee one
-link for shared documents, a to-do list and Slack, gated behind Google
-Sign-In. Runs entirely in the browser, same pattern as this workspace's other
-static sites (flight-tracker, galton-board).
+One link for the committee's shared documents, to-do list and Slack, behind
+Google Sign-In. A static site (no server, no build step) hosted on GitHub
+Pages at https://secretary9acambridge.github.io/strata-portal/.
+
+## Adding or removing a committee member
+
+Share (or unshare) the **Strata Committee Documents** Drive folder with them.
+That's the only step. Portal access follows the folder's sharing within about
+a minute, and there is no list to edit anywhere else.
+
+The person needs a Google account for that email address to sign in.
 
 ## How it works
 
-- **Sign-In with Google** runs client-side via Google's own script. It hands
-  back the signed-in email, which is checked against a hardcoded list in
+- **Sign in** uses Google Identity Services in the browser.
+- **Membership** is decided by a small Google Apps Script (source in
+  `apps-script/`), deployed as a web app under the secretary account. The
+  portal sends it the Google sign-in token. The script verifies the token with
+  Google, then checks whether that email is on the Documents folder's sharing
+  list (owner, editors or viewers). Results are cached for 60 seconds.
+- **Documents** and **To-Do List** are iframes showing the Drive folder and a
+  Google Sheet, so Drive's own sharing also protects the content itself.
+- **Slack** is a plain link.
+
+## Where everything lives
+
+Everything is owned by `secretary.9a.cambridge.st@gmail.com`, so nothing
+depends on any individual member's accounts.
+
+| Piece | Where |
+| --- | --- |
+| Website code | GitHub account `Secretary9aCambridge`, repo `strata-portal` (push to `main` redeploys) |
+| Google sign-in client | Google Cloud project `strata-committee-portal`, client `StrataAuth`, published (not in Testing) |
+| Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
+| Documents | Drive folder "Strata Committee Documents" |
+| To-do list | "Committee To-Do List" sheet, in the folder's Planning subfolder |
+
+## Changing things
+
+- **Settings** (name, folder ID, sheet ID, Slack link, script URL) are in
   `js/config.js`.
-- This check happens in the browser, so it is a convenience gate, not real
-  security. The actual protection is whatever the Drive folder and Sheet are
-  shared with inside Google. Keep the sharing lists and `allowedEmails` in
-  `js/config.js` in sync.
-- **Documents** and **To-Do List** are just iframes pointed at a shared Drive
-  folder and a Google Sheet.
-- **Slack** is a plain link that opens in a new tab.
+- **The membership script:** edit `apps-script/Code.gs` here, paste it into the
+  Apps Script editor, then **Deploy > Manage deployments > edit > New version**.
+  Editing the existing deployment keeps the same URL. A brand new deployment
+  gets a new URL, which would then need updating in `js/config.js`.
+- **If the Documents folder is ever replaced,** update both `driveFolderId` in
+  `js/config.js` and `FOLDER_ID` in the script.
+- **If the site moves to a new address,** add it to the OAuth client's
+  Authorized JavaScript origins, and update the home page, privacy and terms
+  links on the Google Auth Platform Branding page.
+- **Cache busting:** bump the `?v=N` on a file's `<script>`/`<link>` tag in
+  `index.html` whenever that file changes.
 
-## One-time setup (do this under the committee's shared Gmail)
+`privacy.html` and `terms.html` exist because Google requires them to publish
+the sign-in app.
 
-Sign in to that Gmail account for every step below, so the whole portal is
-owned by the committee, not by any one person.
+## Handing over to a new committee
 
-### 1. Create the Google Sign-In client ID
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create
-   a new project (any name, e.g. "Strata Committee Portal").
-2. Go to **APIs & Services > OAuth consent screen**. Choose **External**,
-   fill in an app name and the committee's email as support/contact email.
-   You do not need to submit it for verification, "Testing" mode is fine for
-   a small internal group, just add each committee email under "Test users".
-3. Go to **APIs & Services > Credentials > Create Credentials > OAuth client
-   ID**. Choose **Web application**.
-4. Under **Authorized JavaScript origins**, add the exact URL the site will
-   be served from (e.g. `https://yourname.github.io`). You can add more
-   origins later if the URL changes.
-5. Copy the generated Client ID into `js/config.js` as `googleClientId`.
-
-### 2. Share the Drive folder and Sheet
-
-1. Create (or pick) a Drive folder for committee documents, and a Sheet for
-   the to-do list, owned by the committee Gmail.
-2. Share both with each committee member's email address, the same emails
-   that go into `allowedEmails`.
-3. Copy the folder ID from its URL (`drive.google.com/drive/folders/THIS`)
-   into `driveFolderId`, and the sheet ID from its URL
-   (`docs.google.com/spreadsheets/d/THIS/edit`) into `sheetId`.
-
-### 3. Fill in the rest of `js/config.js`
-
-Edit `strataName`, `allowedEmails` (lowercase, one per committee member) and
-`slackUrl`.
-
-### 4. Create the GitHub account and repo, then enable Pages
-
-1. Create a new GitHub account using the committee Gmail
-   (https://github.com/signup). This account owns the portal, so whoever
-   chairs the committee holds its login.
-2. Create a new repository (e.g. `strata-portal`), and push this folder's
-   contents to it.
-3. In the repo's **Settings > Pages**, set the source to the `main` branch,
-   root folder. GitHub will publish it at
-   `https://<account-name>.github.io/strata-portal/`.
-4. Go back to step 1 above and make sure that exact URL is in the OAuth
-   client's Authorized JavaScript origins.
-
-From then on, updating the site is just editing files and pushing, GitHub
-Pages redeploys automatically.
-
-## Running locally to preview changes
-
-No build step, just serve the folder:
-
-```
-python -m http.server 8000
-```
-
-Then open `http://localhost:8000`. Google Sign-In will not complete unless
-`localhost:8000` (or whatever port you use) is also added as an authorized
-origin in the OAuth client, useful for testing before it's live.
-
-## Handing the portal to a new committee
-
-Whoever takes over needs the committee Gmail login (for Drive/Sheet sharing
-and the Google Cloud project) and the GitHub account login (to edit
-`allowedEmails` as membership changes). Nothing here depends on any
-individual's personal accounts.
+They need two logins: the secretary Gmail (Drive, Apps Script and Google Cloud)
+and the `Secretary9aCambridge` GitHub account.

@@ -1,7 +1,16 @@
-function showLoginError(message) {
+function showLoginMessage(message, isError) {
   const el = document.getElementById('loginError');
   el.textContent = message;
+  el.classList.toggle('is-status', !isError);
   el.hidden = false;
+}
+
+function showLoginError(message) {
+  showLoginMessage(message, true);
+}
+
+function showLoginStatus(message) {
+  showLoginMessage(message, false);
 }
 
 function onSignedIn(profile) {

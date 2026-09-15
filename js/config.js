@@ -10,18 +10,13 @@ const CONFIG = {
   // site's exact URL added under "Authorized JavaScript origins".
   googleClientId: '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleusercontent.com',
 
-  // Only these email addresses (lowercase) may sign in. Add or remove
-  // committee members here as the committee changes over time.
-  allowedEmails: [
-    'secretary.9a.cambridge.st@gmail.com',
-    '[redacted-committee-email]',
-    '[redacted-committee-email]',
-    '[redacted-committee-email]',
-    '[redacted-committee-email]',
-    '[redacted-committee-email]',
-  ],
+  // Web app URL of the membership Apps Script (apps-script/Code.gs). Members are
+  // whoever the Drive folder below is shared with, there is no list to edit here.
+  membershipUrl: 'https://script.google.com/macros/s/AKfycbxMlDJk5pz4Vu_VEiTXeYX3cAnrP1-pIOYPTknwK_KghrhmyEWr8zz5wkJ-OH1cnPeX/exec',
 
   // The ID of the shared Google Drive folder to embed on the Documents tab.
+  // Sharing this folder is what grants portal access. If it changes, update
+  // FOLDER_ID in apps-script/Code.gs too.
   // Find it in the folder's URL: drive.google.com/drive/folders/THIS_PART
   driveFolderId: '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi',
 
