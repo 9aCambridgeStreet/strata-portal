@@ -44,10 +44,13 @@ function clearSession() {
 
 async function checkMembership(credential) {
   // A plain-text body keeps this a simple request, so the browser sends no CORS preflight.
+  const timeout = AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined;
   const res = await fetch(CONFIG.membershipUrl, {
     method: 'POST',
     body: JSON.stringify({ token: credential }),
+    signal: timeout,
   });
+  if (!res.ok) throw new Error('membership check returned ' + res.status);
   return res.json();
 }
 
@@ -58,8 +61,9 @@ async function handleCredentialResponse(response) {
   let result;
   try {
     result = await checkMembership(response.credential);
-  } catch {
-    showLoginError('Could not check committee membership right now. Please try again in a moment.');
+  } catch (err) {
+    console.error('Membership check failed', err);
+    showLoginError(`Could not check committee membership (${err.name === 'TimeoutError' ? 'the check timed out' : err.message}). Check your connection, or try again in a private window in case a browser extension is blocking it.`);
     return;
   }
 
@@ -69,7 +73,12 @@ async function handleCredentialResponse(response) {
   }
 
   saveSession(profile);
-  onSignedIn(profile);
+  try {
+    onSignedIn(profile);
+  } catch (err) {
+    console.error('Could not open the portal', err);
+    showLoginError('Signed in, but the portal failed to open: ' + err.message);
+  }
 }
 
 function initAuth() {
