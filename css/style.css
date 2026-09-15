@@ -13,6 +13,12 @@
   box-sizing: border-box;
 }
 
+/* Must beat the id selectors below, which would otherwise override the
+   browser's own [hidden] rule and leave hidden sections on screen. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

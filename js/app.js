@@ -21,7 +21,9 @@ function onSignedIn(profile) {
   document.getElementById('userAvatar').src = profile.picture || '';
 
   document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#list`;
-  document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit?usp=sharing&rm=minimal&widget=true`;
+  // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
+  // read-only preview and send people to Sheets itself to make changes.
+  document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
   document.getElementById('driveOpenLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
   document.getElementById('sheetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit`;
   document.getElementById('slackLink').href = CONFIG.slackUrl;
