@@ -3,7 +3,7 @@
 
 const CONFIG = {
   // Shown in the header and browser tab.
-  strataName: 'Strata Committee Portal',
+  strataName: '9A Cambridge St Committee',
 
   // The OAuth Client ID from Google Cloud Console (APIs & Services > Credentials).
   // Must be created under the committee's shared Google account, with this
@@ -15,15 +15,18 @@ const CONFIG = {
   allowedEmails: [
     'secretary.9a.cambridge.st@gmail.com',
     '[redacted-committee-email]',
+    '[redacted-committee-email]',
+    '[redacted-committee-email]',
+    '[redacted-committee-email]',
   ],
 
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Find it in the folder's URL: drive.google.com/drive/folders/THIS_PART
-  driveFolderId: 'YOUR_DRIVE_FOLDER_ID',
+  driveFolderId: '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi',
 
   // The ID of the Google Sheet to embed on the To-Do tab.
   // Find it in the sheet's URL: docs.google.com/spreadsheets/d/THIS_PART/edit
-  sheetId: 'YOUR_SHEET_ID',
+  sheetId: '1Knvz5_q8ImCxUp-CVDUJo5-7bnvOBwMhUSnzttE_bvo',
 
   // Full URL of the Slack workspace or channel to link to.
   slackUrl: 'https://yourworkspace.slack.com',
