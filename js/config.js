@@ -8,12 +8,13 @@ const CONFIG = {
   // The OAuth Client ID from Google Cloud Console (APIs & Services > Credentials).
   // Must be created under the committee's shared Google account, with this
   // site's exact URL added under "Authorized JavaScript origins".
-  googleClientId: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+  googleClientId: '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleusercontent.com',
 
   // Only these email addresses (lowercase) may sign in. Add or remove
   // committee members here as the committee changes over time.
   allowedEmails: [
-    'someone@gmail.com',
+    'secretary.9a.cambridge.st@gmail.com',
+    '[redacted-committee-email]',
   ],
 
   // The ID of the shared Google Drive folder to embed on the Documents tab.
