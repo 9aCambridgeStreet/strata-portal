@@ -18,6 +18,7 @@ const CONFIG = {
     '[redacted-committee-email]',
     '[redacted-committee-email]',
     '[redacted-committee-email]',
+    '[redacted-committee-email]',
   ],
 
   // The ID of the shared Google Drive folder to embed on the Documents tab.
