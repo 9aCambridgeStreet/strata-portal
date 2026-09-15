@@ -25,5 +25,5 @@ const CONFIG = {
   sheetId: '1Knvz5_q8ImCxUp-CVDUJo5-7bnvOBwMhUSnzttE_bvo',
 
   // Full URL of the Slack workspace or channel to link to.
-  slackUrl: 'https://yourworkspace.slack.com',
+  slackUrl: 'https://9acambridgestreet.slack.com',
 };
