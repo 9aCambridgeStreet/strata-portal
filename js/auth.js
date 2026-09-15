@@ -98,11 +98,33 @@ function initAuth() {
     callback: handleCredentialResponse,
   });
 
-  google.accounts.id.renderButton(document.getElementById('googleSignInButton'), {
+  renderSignInButton(1);
+}
+
+// Google's button is an iframe, and browser extensions sometimes break its
+// injection, leaving no way to sign in. Retry, then fall back to our own button.
+function renderSignInButton(attempt) {
+  const el = document.getElementById('googleSignInButton');
+
+  google.accounts.id.renderButton(el, {
     theme: 'outline',
     size: 'large',
     shape: 'pill',
   });
+
+  setTimeout(() => {
+    if (el.children.length > 0) return;
+    if (attempt < 3) {
+      renderSignInButton(attempt + 1);
+      return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'fallback-signin';
+    button.textContent = 'Sign in with Google';
+    button.addEventListener('click', () => google.accounts.id.prompt());
+    el.appendChild(button);
+  }, 1500);
 }
 
 function signOut() {
