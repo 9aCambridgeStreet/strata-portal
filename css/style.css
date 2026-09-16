@@ -169,44 +169,6 @@ main {
   padding: 20px;
 }
 
-/* Home tab */
-
-.tile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  max-width: 720px;
-}
-
-.tile {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 20px;
-  text-decoration: none;
-  color: var(--color-text);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.tile:hover {
-  border-color: var(--color-primary);
-}
-
-.tile .tile-icon {
-  font-size: 1.6rem;
-}
-
-.tile .tile-title {
-  font-weight: 600;
-}
-
-.tile .tile-desc {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
 /* Embedded frames */
 
 .frame-toolbar {
