@@ -35,8 +35,19 @@ function doGet() {
     );
   }
 
-  const body = DocumentApp.openById(HOME_DOC_ID).getBody();
-  return page(bodyToHtml(body));
+  try {
+    const body = DocumentApp.openById(HOME_DOC_ID).getBody();
+    return page(bodyToHtml(body));
+  } catch (err) {
+    return page(
+      '<p>The Home page could not load its content.</p>' +
+      '<p>Signed in as: ' + escapeHtml(email) + '</p>' +
+      '<p>Error: ' + escapeHtml(err.message) + '</p>' +
+      '<p>Ask the secretary to check that the Home Page doc (ID ' + HOME_DOC_ID +
+      ') is shared with the committee, and that this script was redeployed ' +
+      '(Deploy &gt; Manage deployments &gt; edit &gt; New version) after any recent edit.</p>'
+    );
+  }
 }
 
 function isMember(email) {

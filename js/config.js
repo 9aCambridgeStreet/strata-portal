@@ -25,12 +25,6 @@ const CONFIG = {
   // Google's own /preview iframe, which never reflows for a phone screen.
   homeViewerUrl: 'https://script.google.com/macros/s/AKfycby_M54UGjGhEmQUzJREXw-Ipwgmr913-eYT-hcfbJ9DfF4fZOU6dqSaf3AWuAqqs3QKpA/exec',
 
-  // Web app URL of the chat-history viewer Apps Script
-  // (apps-script/ChatHistoryViewer.gs). Serves the Slack chat-history export
-  // (a plain .html file, not a native Google file) as a real page, since
-  // Drive itself refuses to render an uploaded HTML file, see the README.
-  chatHistoryViewerUrl: 'https://script.google.com/macros/s/AKfycbz_us-fq6T5fGb-V_A7YujdCtC-dtDvHHECJGCsge_CObpBpdg9UrvQB0eqIOuGzqLGaA/exec',
-
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Sharing this folder is what grants portal access. If it changes, update
   // FOLDER_ID in apps-script/Code.gs too.
