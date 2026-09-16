@@ -23,8 +23,7 @@ const CONFIG = {
   // Web app URL of the Home page Apps Script (apps-script/HomePageViewer.gs).
   // Renders the Home Doc as plain responsive HTML instead of embedding
   // Google's own /preview iframe, which never reflows for a phone screen.
-  // TODO: fill in after deploying HomePageViewer.gs (see the repo README).
-  homeViewerUrl: '',
+  homeViewerUrl: 'https://script.google.com/macros/s/AKfycby_M54UGjGhEmQUzJREXw-Ipwgmr913-eYT-hcfbJ9DfF4fZOU6dqSaf3AWuAqqs3QKpA/exec',
 
   // Web app URL of the chat-history viewer Apps Script
   // (apps-script/ChatHistoryViewer.gs). Serves the Slack chat-history export
