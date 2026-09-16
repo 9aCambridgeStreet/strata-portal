@@ -27,49 +27,15 @@
       </div>
     </header>
 
-    <nav class="portal-nav">
-      <div class="nav-item active" data-tab="home" role="button">Home</div>
-      <div class="nav-item" data-tab="todo" role="button">To-Do List</div>
-      <div class="nav-item" data-tab="processes" role="button">Operating Approach</div>
-      <div class="nav-item" data-tab="budget" role="button">10 Year Budget</div>
-      <a class="nav-item" id="documentsLink" href="#" target="_blank" rel="noopener">Documents &#8599;</a>
-      <a class="nav-item" id="slackAppLink" href="#" rel="noopener">Slack App &#8599;</a>
-      <a class="nav-item" id="slackBrowserLink" href="#" target="_blank" rel="noopener">Slack Browser &#8599;</a>
+    <nav class="portal-nav" id="portalNav">
+      <span class="nav-loading">Loading menu&hellip;</span>
     </nav>
 
-    <main>
-      <div class="tab-panel" data-tab="home">
-        <div class="frame-toolbar">
-          <a id="homeOpenLink" href="#" target="_blank" rel="noopener">Open in Google Docs &#8599;</a>
-        </div>
-        <iframe id="homeFrame" class="embed-frame" title="Home"></iframe>
-      </div>
-
-      <div class="tab-panel" data-tab="todo" hidden>
-        <div class="frame-toolbar">
-          <a id="sheetOpenLink" href="#" target="_blank" rel="noopener">Open in Google Sheets to add or tick off items &#8599;</a>
-        </div>
-        <iframe id="sheetFrame" class="embed-frame" title="To-do list"></iframe>
-      </div>
-
-      <div class="tab-panel" data-tab="processes" hidden>
-        <div class="frame-toolbar">
-          <a id="processesOpenLink" href="#" target="_blank" rel="noopener">Open in Google Docs &#8599;</a>
-        </div>
-        <iframe id="processesFrame" class="embed-frame" title="Operating Approach"></iframe>
-      </div>
-
-      <div class="tab-panel" data-tab="budget" hidden>
-        <div class="frame-toolbar">
-          <a id="budgetOpenLink" href="#" target="_blank" rel="noopener">Open in Google Sheets &#8599;</a>
-        </div>
-        <iframe id="budgetFrame" class="embed-frame" title="10 Year Budget"></iframe>
-      </div>
-    </main>
+    <main id="portalMain"></main>
   </div>
 
   <script src="js/config.js?v=13"></script>
   <script src="js/auth.js?v=4"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 </html>
