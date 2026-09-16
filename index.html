@@ -31,6 +31,7 @@
       <div class="nav-item active" data-tab="home" role="button">Home</div>
       <div class="nav-item" data-tab="documents" role="button">Documents</div>
       <div class="nav-item" data-tab="todo" role="button">To-Do List</div>
+      <div class="nav-item" data-tab="chathistory" role="button">Chat History</div>
       <a class="nav-item" id="slackLink" href="#" target="_blank" rel="noopener">Slack &#8599;</a>
     </nav>
 
@@ -55,11 +56,18 @@
         </div>
         <iframe id="sheetFrame" class="embed-frame" title="To-do list"></iframe>
       </div>
+
+      <div class="tab-panel" data-tab="chathistory" hidden>
+        <div class="frame-toolbar">
+          <a id="chatHistoryOpenLink" href="#" target="_blank" rel="noopener">Open in a new tab &#8599;</a>
+        </div>
+        <iframe id="chatHistoryFrame" class="embed-frame" title="Slack chat history"></iframe>
+      </div>
     </main>
   </div>
 
-  <script src="js/config.js?v=6"></script>
+  <script src="js/config.js?v=7"></script>
   <script src="js/auth.js?v=4"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

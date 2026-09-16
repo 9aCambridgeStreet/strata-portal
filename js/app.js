@@ -33,6 +33,8 @@ function onSignedIn(profile) {
   document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
   document.getElementById('driveOpenLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
   document.getElementById('sheetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit`;
+  document.getElementById('chatHistoryFrame').src = CONFIG.chatHistoryViewerUrl;
+  document.getElementById('chatHistoryOpenLink').href = CONFIG.chatHistoryViewerUrl;
   document.getElementById('slackLink').href = CONFIG.slackUrl;
 
   showTab('home');
