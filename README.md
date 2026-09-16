@@ -2,7 +2,7 @@
 
 One link for the committee's shared documents, to-do list and Slack, behind
 Google Sign-In. A static site (no server, no build step) hosted on GitHub
-Pages at https://secretary9acambridge.github.io/strata-portal/.
+Pages at https://9acambridgestreet.github.io/strata-portal/.
 
 ## Adding or removing a committee member
 
@@ -31,7 +31,7 @@ depends on any individual member's accounts.
 
 | Piece | Where |
 | --- | --- |
-| Website code | GitHub account `Secretary9aCambridge`, repo `strata-portal` (push to `main` redeploys) |
+| Website code | GitHub account `9aCambridgeStreet`, repo `strata-portal` (push to `main` redeploys) |
 | Google sign-in client | Google Cloud project `strata-committee-portal`, client `StrataAuth`, published (not in Testing) |
 | Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
@@ -169,4 +169,4 @@ never learn who was asking either.
 ## Handing over to a new committee
 
 They need two logins: the secretary Gmail (Drive, Apps Script and Google Cloud)
-and the `Secretary9aCambridge` GitHub account.
+and the `9aCambridgeStreet` GitHub account.
