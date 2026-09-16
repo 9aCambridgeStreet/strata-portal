@@ -1,14 +1,29 @@
 // Finds any file or folder inside Strata Committee Documents that isn't
-// owned by the secretary account, and emails the secretary a link to fix
-// each one. Deployed as a web app under the secretary account (execute as:
-// me), same reasoning as Code.gs: a departed committee member keeps
-// ownership of anything they uploaded even after their Drive access is
-// removed, and if they ever close their Google account those files vanish
-// from the folder with no warning. See "Ownership Audit" in the README.
+// owned by the secretary account, and emails a link to fix each one.
+// Deployed as a web app under the secretary account (execute as: me), same
+// reasoning as Code.gs: a departed committee member keeps ownership of
+// anything they uploaded even after their Drive access is removed, and if
+// they ever close their Google account those files vanish from the folder
+// with no warning. Fixing a file makes a secretary-owned copy AND trashes
+// the original in the same step, so the folder never shows two live copies
+// of the same document. See "Ownership Audit" in the README.
 
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const SECRETARY_EMAIL = 'secretary.9a.cambridge.st@gmail.com';
 const DEFAULT_NOTIFY_EMAILS = [SECRETARY_EMAIL, 'matthew.j.allington@gmail.com'];
+
+// File IDs the portal itself hardcodes in js/config.js, keyed to the config
+// key that names them. Copying one of these and trashing the original still
+// leaves the portal pointing at the now-trashed original's ID, so the copy
+// action calls this out explicitly rather than leaving it to be discovered
+// as a broken embed. Keep this in sync by hand if js/config.js ever changes
+// which IDs it hardcodes, there's no live link between the two files.
+const PORTAL_CONFIG_FILE_IDS = {
+  '1c25axkB_KaTPaZXksvpXh1FFL-BCOhj-NNyD7vOuOIc': 'portalHomeDocId',
+  '12IZwt4u3C9uHAdsAnkthy5rnqwIgLxQNzdlP3-ZI85Q': 'agreedProcessesDocId',
+  '1ZmX6EnsJ20UTBMGt0f3e0772mWwFO7T6UHVLqsuqUCk': 'budgetSheetId',
+  '1Knvz5_q8ImCxUp-CVDUJo5-7bnvOBwMhUSnzttE_bvo': 'sheetId',
+};
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -89,9 +104,18 @@ function checkOwnership() {
   const scriptUrl = ScriptApp.getService().getUrl();
   const blocks = items.map(function (item) {
     const header = (item.type === 'folder' ? '[FOLDER] ' : '') + item.name;
-    const action = item.type === 'file'
-      ? '  Make a secretary-owned copy: ' + scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id) + '\n'
-      : '  (a folder - this can\'t copy a whole folder tree in one step; move or recreate its contents manually if needed)\n';
+    const configKey = PORTAL_CONFIG_FILE_IDS[item.id];
+    let action;
+    if (item.type !== 'file') {
+      action = '  (a folder - this can\'t copy a whole folder tree in one step; move or recreate its contents manually if needed)\n';
+    } else {
+      action = '  Make a secretary-owned copy (trashes the original): ' +
+        scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id) + '\n';
+      if (configKey) {
+        action += '  NOTE: hardcoded in js/config.js as ' + configKey + ' - you\'ll need to update ' +
+          'that to the new copy\'s ID afterward, the link will tell you the new ID.\n';
+      }
+    }
     return (
       header + '\n' +
       '  Location: ' + item.path + '\n' +
@@ -111,9 +135,9 @@ function checkOwnership() {
       'personally retain the power to delete or reshare them regardless of what the committee ' +
       'wants.\n\n' +
       'For a file, click "Make a secretary-owned copy" below to create a copy owned by the ' +
-      'secretary account, in the same folder. The original is left alone - decide separately ' +
-      'whether to delete it, and whether anything (like js/config.js in the portal) points at ' +
-      'its file ID, since the copy gets a new one.\n\n' +
+      'secretary account in the same folder, and move the original to Drive\'s Trash (recoverable ' +
+      'for about 30 days) so there\'s never two live copies of the same document sitting there at ' +
+      'once.\n\n' +
       blocks.join('\n'),
   });
 }
@@ -140,16 +164,45 @@ function copyFileAction(fileId) {
     return page('<p>“' + file.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
   }
 
+  const originalId = file.getId();
+  const originalName = file.getName();
   const parents = file.getParents();
   const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
-  const copy = file.makeCopy(file.getName() + ' (secretary copy)', parentFolder);
+  const copy = file.makeCopy(originalName, parentFolder);
 
-  return page(
-    '<p>Made a secretary-owned copy of “' + file.getName() + '”.</p>' +
-    '<p><a href="' + copy.getUrl() + '" target="_blank">Open the new copy</a></p>' +
-    '<p>The original (still owned by ' + ownerEmail + ') has been left alone. Decide whether to ' +
-    'delete it, and whether anything elsewhere points at its file ID, since the copy has a new one.</p>'
-  );
+  // Trash (not permanently delete) the original straight after copying, so
+  // the folder never shows two live copies of the same document at once -
+  // that ambiguity about which one to edit is worse than the ownership
+  // problem itself. Trashing is reversible from Drive's own Trash for the
+  // usual ~30 days, unlike a hard delete.
+  let trashError = null;
+  try {
+    file.setTrashed(true);
+  } catch (err) {
+    trashError = err.message;
+  }
+
+  const configKey = PORTAL_CONFIG_FILE_IDS[originalId];
+  let html =
+    '<p>Made a secretary-owned copy of “' + originalName + '”.</p>' +
+    '<p><a href="' + copy.getUrl() + '" target="_blank">Open the new copy</a></p>';
+
+  html += trashError
+    ? '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail + '): ' +
+      trashError + '. Move it to Trash yourself in Drive so there aren’t two live copies.</p>'
+    : '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, so only ' +
+      'the new copy is visible in the folder now. It’s recoverable from Drive’s Trash for about ' +
+      '30 days if that turns out to be wrong.</p>';
+
+  if (configKey) {
+    html +=
+      '<p><strong>Action needed:</strong> this file’s old ID is hardcoded in js/config.js as ' +
+      '<code>' + configKey + '</code>. The portal is now pointing at a trashed file until you update ' +
+      '<code>' + configKey + '</code> to the copy’s new ID:</p>' +
+      '<p><code>' + copy.getId() + '</code></p>';
+  }
+
+  return page(html);
 }
 
 // Confirms fileId is actually somewhere under FOLDER_ID before this script

@@ -166,14 +166,27 @@ no warning to anyone.
 `apps-script/OwnershipAudit.gs` (with its manifest,
 `OwnershipAudit.appsscript.json`) checks for this daily: it walks the whole
 Documents folder tree and, only when it finds something, emails the
-secretary account a list of every file or subfolder not owned by
-`secretary.9a.cambridge.st@gmail.com`. Each file in that email gets a
-"make a secretary-owned copy" link, clicking it runs under the secretary
-account (same deployment setting as the membership script) and creates a
-copy owned by the secretary in the same folder. It never touches or deletes
-the original, and it never auto-updates any file ID hardcoded in
-`js/config.js`, that's a manual follow-up if the copy needs to replace
-something the portal already points at directly.
+current notify list (see below) a list of every file or subfolder not
+owned by `secretary.9a.cambridge.st@gmail.com`. Each file in that email
+gets a "make a secretary-owned copy" link, clicking it runs under the
+secretary account (same deployment setting as the membership script),
+creates a copy owned by the secretary in the same folder, and **moves the
+original to Drive's Trash** in the same step, so the folder never ends up
+showing two live copies of the same document with no obvious way to tell
+which one is now the real one. Trashing isn't a permanent delete, it's
+recoverable from Drive's own Trash for about 30 days if that ever turns out
+to be the wrong call.
+
+**The exception is the handful of files the portal points at by a
+hardcoded ID** in `js/config.js` (the Home doc, Operating Approach doc, 10
+Year Budget sheet, To-Do sheet). Copying one of those and trashing the
+original still leaves `js/config.js` pointing at the now-trashed ID, so the
+portal's embed for that tab would break. `PORTAL_CONFIG_FILE_IDS` in
+`OwnershipAudit.gs` knows about these four and the copy action calls this
+out explicitly, both in the audit email and on the confirmation page,
+naming the config key to update and the new file ID to put in it. Keep
+that map in sync by hand if `js/config.js`'s hardcoded IDs ever change,
+there's no live link between the two files.
 
 **Here's How (one-time setup):**
 
