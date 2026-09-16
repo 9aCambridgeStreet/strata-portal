@@ -7,33 +7,11 @@ const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const CACHE_SECONDS = 60;
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action === 'count') {
-    return json({ count: documentsFileCount() });
-  }
   if (e && e.parameter && e.parameter.action === 'trackSlackBrowserClick') {
     trackSlackBrowserClick();
     return json({ ok: true });
   }
   return json({ service: 'strata-portal-membership' });
-}
-
-// Number of files directly inside the Documents folder (not counting
-// subfolders like Planning/Processes, or files inside them), for the
-// Documents tab's toolbar. Cached alongside the membership list.
-function documentsFileCount() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get('fileCount');
-  if (cached !== null) return Number(cached);
-
-  const files = DriveApp.getFolderById(FOLDER_ID).getFiles();
-  let count = 0;
-  while (files.hasNext()) {
-    files.next();
-    count++;
-  }
-
-  cache.put('fileCount', String(count), CACHE_SECONDS);
-  return count;
 }
 
 function doPost(e) {
