@@ -181,6 +181,22 @@ function showTab(tabName) {
   });
 }
 
+// Phone-only: the nav is a plain horizontal tab strip down to tablet width
+// (see the max-width: 700px block in style.css, which real tablets never hit
+// even in portrait), and only collapses into this toggled dropdown below
+// that. Closing on any nav-item click means picking a tab, or following an
+// external link, both tidy the menu away again on its own.
+function toggleMobileMenu() {
+  const nav = document.getElementById('portalNav');
+  const isOpen = nav.classList.toggle('is-open');
+  document.getElementById('menuToggle').setAttribute('aria-expanded', String(isOpen));
+}
+
+function closeMobileMenu() {
+  document.getElementById('portalNav').classList.remove('is-open');
+  document.getElementById('menuToggle').setAttribute('aria-expanded', 'false');
+}
+
 function initPortal() {
   document.title = CONFIG.strataName;
   document.querySelectorAll('[data-portal-name]').forEach((el) => {
@@ -188,6 +204,12 @@ function initPortal() {
   });
 
   document.getElementById('signOutButton').addEventListener('click', signOut);
+  document.getElementById('menuToggle').addEventListener('click', toggleMobileMenu);
+  // Delegated, so it keeps working after renderMenu() rebuilds the nav's
+  // children on every menu load/refresh.
+  document.getElementById('portalNav').addEventListener('click', (e) => {
+    if (e.target.closest('.nav-item')) closeMobileMenu();
+  });
 
   // Nav-item click handlers are now wired per-item inside renderMenu(),
   // since the menu itself is built dynamically after sign-in. The old

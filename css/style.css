@@ -105,6 +105,12 @@ header.portal-header h1 {
   margin: 0;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -128,6 +134,61 @@ header.portal-header h1 {
 
 #signOutButton:hover {
   background: rgba(255, 255, 255, 0.28);
+}
+
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  color: #fff;
+}
+
+.menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.menu-toggle-bars,
+.menu-toggle-bars::before,
+.menu-toggle-bars::after {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.menu-toggle-bars {
+  position: relative;
+}
+
+.menu-toggle-bars::before,
+.menu-toggle-bars::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+
+.menu-toggle-bars::before {
+  top: -6px;
+}
+
+.menu-toggle-bars::after {
+  top: 6px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 nav.portal-nav {
@@ -201,6 +262,41 @@ main {
   header.portal-header {
     justify-content: center;
     text-align: center;
+  }
+
+  .header-top {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  .user-info {
+    width: 100%;
+    justify-content: center;
+  }
+
+  nav.portal-nav {
+    display: none;
+    flex-direction: column;
+    overflow-x: visible;
+  }
+
+  nav.portal-nav.is-open {
+    display: flex;
+  }
+
+  .nav-item {
+    white-space: normal;
+    border-bottom: 1px solid var(--color-border);
+    border-left: 3px solid transparent;
+  }
+
+  .nav-item.active {
+    border-bottom-color: var(--color-border);
+    border-left-color: var(--color-primary);
   }
 
   .tab-panel {

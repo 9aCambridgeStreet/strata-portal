@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Strata Committee Portal</title>
-  <link rel="stylesheet" href="css/style.css?v=10" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
   <script src="https://accounts.google.com/gsi/client" defer></script>
 </head>
 <body>
@@ -19,7 +19,13 @@
 
   <div id="portal" hidden>
     <header class="portal-header">
-      <h1 data-portal-name>Strata Committee Portal</h1>
+      <div class="header-top">
+        <h1 data-portal-name>Strata Committee Portal</h1>
+        <button id="menuToggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="portalNav">
+          <span class="menu-toggle-bars"></span>
+          <span class="visually-hidden">Menu</span>
+        </button>
+      </div>
       <div class="user-info">
         <img id="userAvatar" alt="" />
         <span id="userName"></span>
@@ -36,6 +42,6 @@
 
   <script src="js/config.js?v=13"></script>
   <script src="js/auth.js?v=5"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>
