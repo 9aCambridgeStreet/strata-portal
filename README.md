@@ -33,7 +33,9 @@ The person needs a Google account for that email address to sign in.
   opened an app is just a timing guess on iOS, and it kept guessing wrong on
   a real iPad - the fallback fired even when the app had opened successfully,
   leaving an unwanted Slack-login tab behind. Two explicit links removes the
-  guess entirely.
+  guess entirely. "Slack Browser" clicks are counted (not shown anywhere in
+  the portal) so Matt can see, via a weekly email, whether anyone actually
+  uses it - see "Slack Browser click tracking" below.
 
 ## Where everything lives
 
@@ -71,6 +73,23 @@ depends on any individual member's accounts.
 
 `privacy.html` and `terms.html` exist because Google requires them to publish
 the sign-in app.
+
+## Slack Browser click tracking
+
+Every click on the "Slack Browser" nav link (not "Slack App") is counted by
+`apps-script/Code.gs`, purely so Matt can see whether anyone actually uses
+it and decide later whether to remove it. The counts aren't shown anywhere
+in the portal - instead, a weekly email goes to Matt with this week's count
+and the all-time total, then the weekly count resets to 0.
+
+**One-time setup**, after pasting `Code.gs` into the live Apps Script
+project (see "Changing things" above): open the project in the Apps Script
+editor, select `setupWeeklyTrigger` from the function dropdown next to the
+Run button, and click Run once. That's it - it creates a trigger that fires
+`sendWeeklySlackClickReport` every Monday at 8am, and keeps doing so on its
+own. **Don't run it more than once** (check Triggers, the clock icon in the
+left sidebar, if unsure whether it's already set up), or the email goes out
+twice every week.
 
 ## Adding a New Page
 

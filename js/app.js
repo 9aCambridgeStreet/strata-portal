@@ -79,6 +79,15 @@ function initPortal() {
 
   document.getElementById('signOutButton').addEventListener('click', signOut);
 
+  // Fire-and-forget: lets Matt see (via a weekly email from the membership
+  // script) whether anyone actually uses the browser fallback link, so he
+  // can decide later whether to remove it. Never blocks the link's own
+  // navigation, and a failed/blocked request just means one click goes
+  // uncounted, nothing else depends on it.
+  document.getElementById('slackBrowserLink').addEventListener('click', () => {
+    fetch(`${CONFIG.membershipUrl}?action=trackSlackBrowserClick`).catch(() => {});
+  });
+
   initAuth();
 }
 
