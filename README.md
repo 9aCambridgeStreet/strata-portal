@@ -177,16 +177,24 @@ which one is now the real one. Trashing isn't a permanent delete, it's
 recoverable from Drive's own Trash for about 30 days if that ever turns out
 to be the wrong call.
 
-**The exception is the handful of files the portal points at by a
-hardcoded ID** in `js/config.js` (the Home doc, Operating Approach doc, 10
-Year Budget sheet, To-Do sheet). Copying one of those and trashing the
-original still leaves `js/config.js` pointing at the now-trashed ID, so the
-portal's embed for that tab would break. `PORTAL_CONFIG_FILE_IDS` in
-`OwnershipAudit.gs` knows about these four and the copy action calls this
-out explicitly, both in the audit email and on the confirmation page,
-naming the config key to update and the new file ID to put in it. Keep
-that map in sync by hand if `js/config.js`'s hardcoded IDs ever change,
-there's no live link between the two files.
+**The exception is a file that's currently a nav tab.** The portal's nav
+bar is built entirely from the "Portal Menu" Sheet (the same one Code.gs's
+`getMenu()` serves to the portal, one row per tab, a Link column pointing
+at the Drive file it embeds), not from `js/config.js` - the four
+Drive-ID fields still sitting in `js/config.js` (`portalHomeDocId`,
+`agreedProcessesDocId`, `budgetSheetId`, `sheetId`) are leftovers nothing
+actually reads any more. So before trashing anything, the copy action
+reads that same Menu Sheet directly (`getMenuLinkedFileIds()` in
+`OwnershipAudit.gs`) and checks whether the file being copied is one of
+its links. If it is, the original is left alone rather than trashed, and
+the confirmation page (and the audit email, in advance) names the menu row
+and asks you to repoint its Link at the new copy's URL first, then trash
+the old one yourself once that's live. If the Sheet can't be read at all
+(renamed, restructured, a bad moment), it fails safe the same way, leaving
+the original untouched rather than risk trashing a live nav tab. This
+needed adding the same "Sheets" Advanced Service and a
+`spreadsheets.readonly` scope to `OwnershipAudit.appsscript.json` that
+Code.gs already uses for the same lookup.
 
 **Here's How (one-time setup):**
 
