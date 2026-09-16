@@ -152,6 +152,10 @@ nav.portal-nav {
   font-weight: 600;
 }
 
+a.nav-item {
+  text-decoration: none;
+}
+
 main {
   flex: 1;
   display: flex;

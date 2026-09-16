@@ -14,6 +14,12 @@ const CONFIG = {
   // whoever the Drive folder below is shared with, there is no list to edit here.
   membershipUrl: 'https://script.google.com/macros/s/AKfycbxMlDJk5pz4Vu_VEiTXeYX3cAnrP1-pIOYPTknwK_KghrhmyEWr8zz5wkJ-OH1cnPeX/exec',
 
+  // The ID of the Google Doc to embed on the Home tab. Lives inside the
+  // Portal folder, which sits inside the shared Documents folder below, so
+  // it inherits membership automatically without any extra sharing.
+  // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
+  portalHomeDocId: '1c25axkB_KaTPaZXksvpXh1FFL-BCOhj-NNyD7vOuOIc',
+
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Sharing this folder is what grants portal access. If it changes, update
   // FOLDER_ID in apps-script/Code.gs too.

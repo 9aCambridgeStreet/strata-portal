@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Strata Committee Portal</title>
-  <link rel="stylesheet" href="css/style.css?v=4" />
+  <link rel="stylesheet" href="css/style.css?v=5" />
   <script src="https://accounts.google.com/gsi/client" defer></script>
 </head>
 <body>
@@ -31,27 +31,15 @@
       <div class="nav-item active" data-tab="home" role="button">Home</div>
       <div class="nav-item" data-tab="documents" role="button">Documents</div>
       <div class="nav-item" data-tab="todo" role="button">To-Do List</div>
+      <a class="nav-item" id="slackLink" href="#" target="_blank" rel="noopener">Slack &#8599;</a>
     </nav>
 
     <main>
       <div class="tab-panel" data-tab="home">
-        <div class="tile-grid">
-          <div class="tile" data-tab="documents" role="button" onclick="showTab('documents')">
-            <span class="tile-icon">📁</span>
-            <span class="tile-title">Documents</span>
-            <span class="tile-desc">Shared Google Drive folder</span>
-          </div>
-          <div class="tile" data-tab="todo" role="button" onclick="showTab('todo')">
-            <span class="tile-icon">✅</span>
-            <span class="tile-title">To-Do List</span>
-            <span class="tile-desc">Shared Google Sheet</span>
-          </div>
-          <a class="tile" id="slackLink" href="#" target="_blank" rel="noopener">
-            <span class="tile-icon">💬</span>
-            <span class="tile-title">Slack</span>
-            <span class="tile-desc">Open the committee workspace</span>
-          </a>
+        <div class="frame-toolbar">
+          <a id="homeOpenLink" href="#" target="_blank" rel="noopener">Open in Google Docs &#8599;</a>
         </div>
+        <iframe id="homeFrame" class="embed-frame" title="Home"></iframe>
       </div>
 
       <div class="tab-panel" data-tab="documents" hidden>
@@ -70,8 +58,8 @@
     </main>
   </div>
 
-  <script src="js/config.js?v=4"></script>
+  <script src="js/config.js?v=5"></script>
   <script src="js/auth.js?v=4"></script>
-  <script src="js/app.js?v=3"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

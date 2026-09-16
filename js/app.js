@@ -20,6 +20,8 @@ function onSignedIn(profile) {
   document.getElementById('userName').textContent = profile.name || profile.email;
   document.getElementById('userAvatar').src = profile.picture || '';
 
+  document.getElementById('homeFrame').src = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/preview`;
+  document.getElementById('homeOpenLink').href = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/edit`;
   document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#list`;
   // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
   // read-only preview and send people to Sheets itself to make changes.
