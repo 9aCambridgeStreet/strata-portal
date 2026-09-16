@@ -8,6 +8,7 @@
 
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const SECRETARY_EMAIL = 'secretary.9a.cambridge.st@gmail.com';
+const DEFAULT_NOTIFY_EMAILS = [SECRETARY_EMAIL, 'matthew.j.allington@gmail.com'];
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -56,7 +57,30 @@ function checkOwner(item, path, type, items) {
   });
 }
 
-// Emails the secretary account only when something is actually found, so
+// Who gets the audit email. Stored in Script Properties rather than
+// hardcoded, same pattern as setAlertEmails() in the "Strata Auto Backup"
+// script, so the recipient list can change without touching or redeploying
+// this file. Falls back to DEFAULT_NOTIFY_EMAILS until setNotifyEmails() is
+// ever run.
+function getNotifyEmails() {
+  const stored = PropertiesService.getScriptProperties().getProperty('notifyEmails');
+  if (!stored) return DEFAULT_NOTIFY_EMAILS;
+  return stored.split(',').map(function (e) { return e.trim(); }).filter(Boolean);
+}
+
+// Run this once from the editor (edit the string first) to change who gets
+// the audit email - takes effect immediately, no redeploy needed.
+// e.g. setNotifyEmails('secretary.9a.cambridge.st@gmail.com, someone@else.com')
+function setNotifyEmails(commaSeparatedList) {
+  PropertiesService.getScriptProperties().setProperty('notifyEmails', commaSeparatedList);
+}
+
+// Run this from the editor to see the current recipient list in the log.
+function testGetNotifyEmails() {
+  Logger.log(getNotifyEmails());
+}
+
+// Emails the current notify list only when something is actually found, so
 // this stays silent day to day and only lands in the inbox when it matters.
 function checkOwnership() {
   const items = auditFolderTree();
@@ -78,7 +102,7 @@ function checkOwnership() {
   });
 
   MailApp.sendEmail({
-    to: SECRETARY_EMAIL,
+    to: getNotifyEmails().join(','),
     subject: 'Strata portal: ' + items.length + ' item(s) in Committee Documents not owned by the secretary',
     body:
       'The items below, inside Strata Committee Documents, are owned by someone other ' +

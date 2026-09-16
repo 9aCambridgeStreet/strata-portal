@@ -195,6 +195,18 @@ something the portal already points at directly.
 is unguarded by anything beyond being hard to guess, don't publish or share
 it, it's only meant to appear inside the audit email itself.
 
+**Changing who gets the email, no code needed:** the recipient list isn't
+hardcoded, it's a Script Property, which has its own settings screen. In
+the Apps Script editor: gear icon (**Project Settings**) > **Script
+properties** > **Add script property** (or edit it if one's already
+there) > key `notifyEmails`, value a comma-separated list, e.g.
+`secretary.9a.cambridge.st@gmail.com, someone@else.com` > Save. Takes
+effect on the next run, no redeploy. Defaults to the secretary account plus
+`matthew.j.allington@gmail.com` until that property is ever set.
+(`setNotifyEmails('a@x.com, b@y.com')` does the same thing from a function
+call if you're ever editing the script anyway, but the Project Settings
+screen above needs no code at all.)
+
 **Updating the script:** same pattern as the others, edit
 `OwnershipAudit.gs` here, paste it into its Apps Script project, then
 **Deploy > Manage deployments > edit > New version**.
