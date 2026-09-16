@@ -19,7 +19,7 @@ const CONFIG = {
   // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
   portalHomeDocId: '1c25axkB_KaTPaZXksvpXh1FFL-BCOhj-NNyD7vOuOIc',
 
-  // The ID of the Google Doc shown on the Agreed Processes tab, embedded
+  // The ID of the Google Doc shown on the Operating Approach tab, embedded
   // directly the same way as the Home, Documents and To-Do tabs.
   // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
   agreedProcessesDocId: '12IZwt4u3C9uHAdsAnkthy5rnqwIgLxQNzdlP3-ZI85Q',
