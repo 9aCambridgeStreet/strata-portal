@@ -7,10 +7,71 @@ Pages at https://9acambridgestreet.github.io/strata-portal/.
 ## Adding or removing a committee member
 
 Share (or unshare) the **Strata Committee Documents** Drive folder with them.
-That's the only step. Portal access follows the folder's sharing within about
-a minute, and there is no list to edit anywhere else.
+That's the only step, there is no list to edit anywhere else. A fresh sign-in
+picks up the change within about a minute, but see "When a Member Leaves the
+Committee" below for what happens to someone who already has the portal open.
 
 The person needs a Google account for that email address to sign in.
+
+## When a Member Leaves the Committee
+
+Removing a member is a Google Drive change, not a portal change. The sharing
+list on the **Strata Committee Documents** folder *is* the membership list,
+so taking someone off it is the entire job, with no code to touch and
+nothing else to update.
+
+**Here's How:**
+
+1. Open the **Strata Committee Documents** folder in Google Drive, signed in
+   as the secretary account.
+2. Open **Share**, find the person's email address, and remove them.
+
+That's it. The next time anyone signs in, `checkMember()` in
+`apps-script/Code.gs` reads the same sharing list, so a person no longer on
+it is no longer a member.
+
+**Note:** removing someone from Drive doesn't cut off their access the
+instant you click, because the portal checks membership in two different
+places, on two different clocks.
+
+### The Portal Login Screen
+
+Signing in to the portal checks membership exactly once, at the moment of
+sign in, not on every page load. `handleCredentialResponse()` in `js/auth.js`
+runs that check, and once it passes, the browser saves the result to
+`localStorage` and never checks again until it expires. Think of it like a
+building pass someone has already swiped through the front door. Taking
+their name off the tenant list at reception doesn't march them back out of
+the lobby, it just stops the next swipe from working.
+
+So if a member is already signed in, or reloads the portal before their
+local session expires, they still see the Home tab and the full nav bar,
+because the portal isn't asking Drive again, it's reading what it already
+decided last time. That cached session lasts for as long as the Google
+sign-in token stays valid, normally about an hour, or until the member
+clicks **Sign out**.
+
+### The Documents, Sheets and Drive Folder
+
+The actual content is a different story. Every Doc, Sheet and the Drive
+folder link on the Documents tab talks to Google Drive directly, and Drive
+checks sharing on every single request, with no caching of its own. So the
+moment you unshare the folder, the Home and Operating Approach docs stop
+loading, the To-Do List and 10 Year Budget sheets stop loading, and the
+Documents link takes the person to a Google "you need access" page instead
+of the folder, regardless of what the portal still thinks.
+
+**Tip:** in practice a removed member keeps an empty-looking shell of the
+portal open for a while, but can't read anything inside it. If you want them
+locked out the moment you unshare rather than fading out over the following
+hour, just tell them their access has ended, since nothing in the portal
+will actually open for them from that point on.
+
+**Note:** there's one more small delay worth knowing about. The Apps Script
+also caches the membership list for 60 seconds (`CACHE_SECONDS` in
+`apps-script/Code.gs`), a separate cache from the session one above. Wait a
+minute after unsharing before testing that a removed member is properly
+locked out, so you're not chasing a false positive.
 
 ## How it works
 
