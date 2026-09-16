@@ -215,6 +215,10 @@ main {
   margin-bottom: 8px;
 }
 
+.frame-toolbar.toolbar-left {
+  justify-content: flex-start;
+}
+
 .frame-toolbar a {
   font-size: 0.85rem;
   color: var(--color-primary-dark);
