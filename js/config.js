@@ -14,11 +14,17 @@ const CONFIG = {
   // whoever the Drive folder below is shared with, there is no list to edit here.
   membershipUrl: 'https://script.google.com/macros/s/AKfycbxMlDJk5pz4Vu_VEiTXeYX3cAnrP1-pIOYPTknwK_KghrhmyEWr8zz5wkJ-OH1cnPeX/exec',
 
-  // The ID of the Google Doc to embed on the Home tab. Lives inside the
-  // Portal folder, which sits inside the shared Documents folder below, so
-  // it inherits membership automatically without any extra sharing.
+  // The ID of the Google Doc shown on the Home tab (used for the "Open in
+  // Google Docs" link - the tab itself is rendered by homeViewerUrl below,
+  // not embedded directly, see that comment for why).
   // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
   portalHomeDocId: '1c25axkB_KaTPaZXksvpXh1FFL-BCOhj-NNyD7vOuOIc',
+
+  // Web app URL of the Home page Apps Script (apps-script/HomePageViewer.gs).
+  // Renders the Home Doc as plain responsive HTML instead of embedding
+  // Google's own /preview iframe, which never reflows for a phone screen.
+  // TODO: fill in after deploying HomePageViewer.gs (see the repo README).
+  homeViewerUrl: '',
 
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Sharing this folder is what grants portal access. If it changes, update

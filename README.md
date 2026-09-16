@@ -34,6 +34,7 @@ depends on any individual member's accounts.
 | Website code | GitHub account `9aCambridgeStreet`, repo `strata-portal` (push to `main` redeploys) |
 | Google sign-in client | Google Cloud project `strata-committee-portal`, client `StrataAuth`, published (not in Testing) |
 | Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
+| Home page viewer script | Separate Apps Script project, `apps-script/HomePageViewer.gs` (see "Rendering the Home Doc as a Responsive Page" below) |
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
 | Documents | Drive folder "Strata Committee Documents" |
 | To-do list | "Committee To-Do List" sheet, in the folder's Planning subfolder |
@@ -46,6 +47,8 @@ depends on any individual member's accounts.
   Apps Script editor, then **Deploy > Manage deployments > edit > New version**.
   Editing the existing deployment keeps the same URL. A brand new deployment
   gets a new URL, which would then need updating in `js/config.js`.
+- **The Home page viewer script:** same process, but in its own Apps Script
+  project, see "Rendering the Home Doc as a Responsive Page" below.
 - **A chat-history viewer script:** same process, but in its own Apps Script
   project (**Deploy > Manage deployments > edit > New version** on that
   project, not the membership one), see "Embedding a Plain HTML File" below.
@@ -165,6 +168,62 @@ membership script uses) would run this as the secretary account for every
 visitor, with no way to tell who's actually asking. "Anyone" without "with a
 Google account" would skip the sign-in step entirely, and Session would
 never learn who was asking either.
+
+## Rendering the Home Doc as a Responsive Page
+
+The Home tab used to be a plain iframe pointed straight at the Home Doc's
+own `/preview` address, the same recipe as any other Google Doc on this
+portal. That works fine on a laptop, and falls apart on a phone: Google's
+preview is a fixed-width page layout, built to look like a printed sheet
+of paper, not a webpage that reflows. No CSS in this repository can fix
+that, since the content is rendered inside Google's own iframe, on
+Google's own origin, completely out of this site's reach.
+
+`apps-script/HomePageViewer.gs` solves this a different way: instead of
+embedding the Doc, it **reads** the Doc's own structure with `DocumentApp`
+and rewrites it as plain HTML, styled by this project's own CSS. Headings
+become `<h1>`/`<h2>` tags, paragraphs become `<p>` tags, bold and italic
+text and hyperlinks all carry across, and the whole page gets a proper
+mobile viewport tag. The result is a normal, responsive webpage that
+happens to be edited from inside Google Docs.
+
+**Note:** `HomePageViewer.gs` is a **third**, separate Apps Script project,
+alongside the membership script and any chat-history viewer scripts. It
+needs the same deployment setting as `ChatHistoryViewer.gs` (**Execute as:
+User accessing the web app**, **Who has access: Anyone with a Google
+account**), for the same reason: it relies on Apps Script's own sign-in,
+so `Session.getActiveUser().getEmail()` tells it who's asking.
+
+**Note:** `DocumentApp` predates Google Docs' tabs feature, and only ever
+reads a document's first tab. It doesn't merge the other tabs in, and it
+doesn't warn you they exist, they're simply invisible to this script. **The
+Home Doc must be a single-tab document.** If it currently has more than
+one tab, move everything you want shown into the first tab and delete the
+rest before relying on this page.
+
+**Here's How (one-time setup):**
+
+1. In [script.google.com](https://script.google.com), signed in as the
+   secretary account, create a new project.
+2. Paste in the code from `apps-script/HomePageViewer.gs` (paste, don't
+   type by hand, same auto-closing-bracket corruption trap as the other
+   scripts here).
+3. Open **Project Settings** (the gear icon) and paste the contents of
+   `HomePageViewer.appsscript.json` over the existing manifest.
+4. **Deploy > New deployment > Web app**, with:
+   - Execute as: **User accessing the web app**
+   - Who has access: **Anyone with a Google account**
+5. Copy the web app URL Google gives you into `homeViewerUrl` in
+   `js/config.js`, then bump `config.js`'s `?v=N` in `index.html`.
+
+**Tip:** a blank paragraph left in the Doc purely for visual spacing is
+dropped rather than turned into an empty `<p>` tag, since the page's own
+CSS margins already provide that spacing. There's no need to tidy up
+blank lines in the Doc before deploying.
+
+Tables and images in the Doc aren't handled yet, the Home Doc hasn't
+needed them so far. If that changes, extend `bodyToHtml()` in
+`HomePageViewer.gs` rather than going back to embedding the raw Doc.
 
 ## Handing over to a new committee
 
