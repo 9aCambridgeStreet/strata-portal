@@ -20,8 +20,12 @@ The person needs a Google account for that email address to sign in.
   portal sends it the Google sign-in token. The script verifies the token with
   Google, then checks whether that email is on the Documents folder's sharing
   list (owner, editors or viewers). Results are cached for 60 seconds.
-- **Documents** and **To-Do List** are iframes showing the Drive folder and a
-  Google Sheet, so Drive's own sharing also protects the content itself.
+- **Documents**, **To-Do List** and **10 Year Budget** are iframes showing the
+  Drive folder and two Google Sheets, so Drive's own sharing also protects the
+  content itself. Documents uses Drive's grid view (rather than list) since
+  grid skips the Owner/Last modified columns list view shows; the file count
+  next to its "Open in Google Drive" link comes from the membership script's
+  `?action=count` endpoint, not from Drive's own embed.
 - **Slack** is a plain link.
 
 ## Where everything lives
@@ -37,6 +41,7 @@ depends on any individual member's accounts.
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
 | Documents | Drive folder "Strata Committee Documents" |
 | To-do list | "Committee To-Do List" sheet, in the folder's Planning subfolder |
+| 10 Year Budget | "10 Year Sinking Fund Forecast - Costs Estimates" sheet, in the folder's Planning subfolder |
 
 ## Changing things
 

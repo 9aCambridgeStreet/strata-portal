@@ -24,6 +24,11 @@ const CONFIG = {
   // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
   agreedProcessesDocId: '12IZwt4u3C9uHAdsAnkthy5rnqwIgLxQNzdlP3-ZI85Q',
 
+  // The ID of the Google Sheet shown on the 10 Year Budget tab, embedded
+  // directly the same way as the To-Do tab.
+  // Find it in the sheet's URL: docs.google.com/spreadsheets/d/THIS_PART/edit
+  budgetSheetId: '1ZmX6EnsJ20UTBMGt0f3e0772mWwFO7T6UHVLqsuqUCk',
+
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Sharing this folder is what grants portal access. If it changes, update
   // FOLDER_ID in apps-script/Code.gs too.
