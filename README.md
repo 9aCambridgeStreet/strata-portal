@@ -25,7 +25,15 @@ The person needs a Google account for that email address to sign in.
   content itself. Documents uses Drive's list view; the file count next to its
   "Open in Google Drive" link comes from the membership script's
   `?action=count` endpoint, not from Drive's own embed.
-- **Slack** is a plain link.
+- **Slack** is two plain links, not one auto-detecting one: "Slack App"
+  (`slack://open`, the URL scheme both the mobile and desktop Slack apps
+  register) and "Slack Browser" (`CONFIG.slackUrl`). An earlier version tried
+  to open the app and silently fall back to the browser link if nothing
+  answered within a timeout, but detecting whether a custom scheme actually
+  opened an app is just a timing guess on iOS, and it kept guessing wrong on
+  a real iPad - the fallback fired even when the app had opened successfully,
+  leaving an unwanted Slack-login tab behind. Two explicit links removes the
+  guess entirely.
 
 ## Where everything lives
 
