@@ -109,6 +109,7 @@ depends on any individual member's accounts.
 | Google sign-in client | Google Cloud project `strata-committee-portal`, client `StrataAuth`, published (not in Testing) |
 | Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
+| Ownership audit script | Separate Apps Script project "Strata Ownership Audit" (see "Ownership Audit" below) |
 | Documents | Drive folder "Strata Committee Documents" |
 | To-do list | "Committee To-Do List" sheet, in the folder's Planning subfolder |
 | 10 Year Budget | "10 Year Sinking Fund Forecast - Costs Estimates" sheet, in the folder's Planning subfolder |
@@ -151,6 +152,52 @@ Run button, and click Run once. That's it - it creates a trigger that fires
 own. **Don't run it more than once** (check Triggers, the clock icon in the
 left sidebar, if unsure whether it's already set up), or the email goes out
 twice every week.
+
+## Ownership Audit
+
+Sharing the Documents folder with someone doesn't change who *owns* a file
+they upload or create inside it, ownership stays with their personal Google
+account. If that person later leaves the committee, or their sharing is
+removed, the file itself is untouched, they're still the owner and can still
+delete it or reshare it whenever they like. If they ever close their Google
+account entirely, anything they solely own disappears from the folder with
+no warning to anyone.
+
+`apps-script/OwnershipAudit.gs` (with its manifest,
+`OwnershipAudit.appsscript.json`) checks for this daily: it walks the whole
+Documents folder tree and, only when it finds something, emails the
+secretary account a list of every file or subfolder not owned by
+`secretary.9a.cambridge.st@gmail.com`. Each file in that email gets a
+"make a secretary-owned copy" link, clicking it runs under the secretary
+account (same deployment setting as the membership script) and creates a
+copy owned by the secretary in the same folder. It never touches or deletes
+the original, and it never auto-updates any file ID hardcoded in
+`js/config.js`, that's a manual follow-up if the copy needs to replace
+something the portal already points at directly.
+
+**Here's How (one-time setup):**
+
+1. In [script.google.com](https://script.google.com), signed in as the
+   secretary account, create a new project.
+2. Paste in the code from `apps-script/OwnershipAudit.gs` (paste, don't type
+   by hand, same auto-closing-bracket trap as the other scripts here).
+3. Open **Project Settings** (the gear icon) and paste the contents of
+   `OwnershipAudit.appsscript.json` over the existing manifest.
+4. **Deploy > New deployment > Web app**, with:
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+5. Open the project, select `setupDailyOwnershipCheck` from the function
+   dropdown next to the Run button, and click Run once. Check Triggers (the
+   clock icon) first if you're ever unsure whether it's already set up,
+   running it twice means two emails on any day something is found.
+
+**Note:** like the membership script's URL, this deployment's web app URL
+is unguarded by anything beyond being hard to guess, don't publish or share
+it, it's only meant to appear inside the audit email itself.
+
+**Updating the script:** same pattern as the others, edit
+`OwnershipAudit.gs` here, paste it into its Apps Script project, then
+**Deploy > Manage deployments > edit > New version**.
 
 ## Adding a New Page
 
