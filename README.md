@@ -22,9 +22,8 @@ The person needs a Google account for that email address to sign in.
   list (owner, editors or viewers). Results are cached for 60 seconds.
 - **Documents**, **To-Do List** and **10 Year Budget** are iframes showing the
   Drive folder and two Google Sheets, so Drive's own sharing also protects the
-  content itself. Documents uses Drive's grid view (rather than list) since
-  grid skips the Owner/Last modified columns list view shows; the file count
-  next to its "Open in Google Drive" link comes from the membership script's
+  content itself. Documents uses Drive's list view; the file count next to its
+  "Open in Google Drive" link comes from the membership script's
   `?action=count` endpoint, not from Drive's own embed.
 - **Slack** is a plain link.
 
