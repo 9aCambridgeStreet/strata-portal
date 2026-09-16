@@ -29,6 +29,9 @@ function doGet(e) {
   if (action === 'copyFile') {
     return copyFileAction(e.parameter.fileId);
   }
+  if (action === 'fixFolder') {
+    return fixFolderAction(e.parameter.folderId);
+  }
   return page('<p>Strata ownership audit. Nothing to see here directly, ' +
     'this runs on a schedule and emails the secretary account.</p>');
 }
@@ -173,47 +176,70 @@ function checkOwnership() {
 
   const menu = getMenuLinkedFileIds();
   const scriptUrl = ScriptApp.getService().getUrl();
-  const blocks = items.map(function (item) {
-    const header = (item.type === 'folder' ? '[FOLDER] ' : '') + item.name;
-    const menuName = menu.ok ? menu.ids[item.id] : null;
-    let action;
-    if (item.type !== 'file') {
-      action = '  (a folder - this can\'t copy a whole folder tree in one step; move or recreate its contents manually if needed)\n';
-    } else if (!menu.ok) {
-      action = '  Make a secretary-owned copy: ' + scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id) + '\n' +
-        '  NOTE: couldn\'t check the Portal Menu Sheet just now, so the original will NOT be auto-trashed - check by hand whether this is a live nav tab first.\n';
-    } else if (menuName) {
-      action = '  Make a secretary-owned copy (won\'t auto-trash the original, linked from the main menu as "' + menuName + '"): ' +
-        scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id) + '\n' +
-        '  NOTE: update the "' + menuName + '" row\'s Link in the Portal Menu Sheet to the new copy\'s URL, then trash the original yourself once that\'s live.\n';
-    } else {
-      action = '  Make a secretary-owned copy (trashes the original): ' +
-        scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id) + '\n';
+  const blocks = items.map(function (item, i) {
+    const number = i + 1;
+    const name = escapeHtml(item.name);
+    const path = escapeHtml(item.path);
+    const owner = escapeHtml(item.owner);
+
+    if (item.type === 'folder') {
+      const fixUrl = scriptUrl + '?action=fixFolder&folderId=' + encodeURIComponent(item.id);
+      return (
+        '<p><b>Folder ' + number + ': ' + name + '</b><br>' +
+        'Location: ' + path + '<br>' +
+        'Currently owned by: ' + owner + '<br>' +
+        '<a href="' + fixUrl + '">Click here to fix this folder</a><br>' +
+        'This renames the old folder to &ldquo;' + name + ' - old&rdquo; and creates a new folder ' +
+        'called &ldquo;' + name + '&rdquo; owned by the secretary account. Move any files from the ' +
+        'old folder into the new one, then delete the old folder. Any moved files still owned by ' +
+        'another committee member will show up in a future audit.</p>'
+      );
     }
+
+    const copyUrl = scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id);
+    const menuName = menu.ok ? menu.ids[item.id] : undefined;
+    let note = '';
+    if (!menu.ok) {
+      note = 'Note: Couldn’t check the portal menu just now. If this file turns out to be ' +
+        'linked there, copy the full path of the file and paste it in the file Portal\\Portal Menu ' +
+        'after taking ownership.<br>';
+    } else if (menuName) {
+      note = 'Note: This file is linked in the portal menu. After taking ownership, copy the full ' +
+        'path of the file and paste it in the file Portal\\Portal Menu so the menu continues to ' +
+        'work.<br>';
+    }
+
     return (
-      header + '\n' +
-      '  Location: ' + item.path + '\n' +
-      '  Owned by: ' + item.owner + '\n' +
-      '  Open: ' + item.url + '\n' +
-      action
+      '<p><b>File ' + number + ': ' + name + '</b><br>' +
+      'Location: ' + path + '<br>' +
+      'Currently owned by: ' + owner + '<br>' +
+      '<a href="' + copyUrl + '">Click here to take ownership</a><br>' +
+      note + '</p>'
     );
   });
+
+  const introHtml =
+    '<p>This email lists every file a committee member has loaded into the portal that they ' +
+    'still personally own. When a committee member adds a file, they keep ownership of it by ' +
+    'default, even though it sits inside a folder shared with the whole committee. Every file ' +
+    'needs to belong to the secretary account instead, not to any individual committee member. ' +
+    'This email steps through each file below so you can take ownership of it.</p>';
 
   MailApp.sendEmail({
     to: getNotifyEmails().join(','),
     subject: 'Strata portal: ' + items.length + ' item(s) in Committee Documents not owned by the secretary',
-    body:
-      'The items below, inside Strata Committee Documents, are owned by someone other ' +
-      'than the secretary account. If any of those people ever lose or close their Google ' +
-      'account, their files disappear from this folder with no warning, and until then they ' +
-      'personally retain the power to delete or reshare them regardless of what the committee ' +
-      'wants.\n\n' +
-      'For a file, click "Make a secretary-owned copy" below to create a copy owned by the ' +
-      'secretary account in the same folder. Unless it\'s currently linked from the main portal ' +
-      'menu, the original is also moved to Drive\'s Trash in the same step (recoverable for about ' +
-      '30 days) so there\'s never two live copies of the same document sitting there at once.\n\n' +
-      blocks.join('\n'),
+    htmlBody: introHtml + blocks.join(''),
   });
+}
+
+// Minimal HTML-escaping for values (file/folder names, folder paths) that
+// come from Drive and could contain &, < or > - without this, a name like
+// "A & B.pdf" would silently break the rest of that block's HTML.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // --- The one-click fix ---
@@ -228,7 +254,7 @@ function copyFileAction(fileId) {
     return page('<p>Could not open that file. It may have been moved or deleted, or the link is wrong.</p>');
   }
 
-  if (!isFileInAuditScope(file)) {
+  if (!isItemInAuditScope(file)) {
     return page('<p>That file is not inside the Strata Committee Documents folder, so this tool won’t touch it.</p>');
   }
 
@@ -283,15 +309,63 @@ function copyFileAction(fileId) {
   return page(html);
 }
 
-// Confirms fileId is actually somewhere under FOLDER_ID before this script
-// will touch it, walking every parent chain (a file can technically have
-// more than one) rather than trusting the caller. `seen` guards against a
-// cycle, which shouldn't happen in real Drive data but costs nothing to
-// rule out.
-function isFileInAuditScope(file) {
+// --- The one-click folder fix ---
+
+// A folder can't be copied in one Drive API call the way a file can (there's
+// no "copy this whole tree" method), so instead of a copy this renames the
+// wrongly-owned folder out of the way and creates a same-named replacement
+// that's secretary-owned from birth (createFolder() always makes the new
+// folder owned by whoever the script is running as). The person actioning
+// the email still has to manually move the contents across and delete the
+// old folder - there's no way to reassign ownership of existing files in
+// bulk via the Drive API, only ever create new secretary-owned ones.
+function fixFolderAction(folderId) {
+  if (!folderId) return page('<p>Missing folder ID.</p>');
+
+  let folder;
+  try {
+    folder = DriveApp.getFolderById(folderId);
+  } catch (err) {
+    return page('<p>Could not open that folder. It may have been moved or deleted, or the link is wrong.</p>');
+  }
+
+  if (!isItemInAuditScope(folder)) {
+    return page('<p>That folder is not inside the Strata Committee Documents folder, so this tool won’t touch it.</p>');
+  }
+
+  const owner = folder.getOwner();
+  const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
+  if (ownerEmail === SECRETARY_EMAIL) {
+    return page('<p>“' + folder.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
+  }
+
+  const originalName = folder.getName();
+  const parents = folder.getParents();
+  const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
+
+  folder.setName(originalName + ' - old');
+  const newFolder = parentFolder.createFolder(originalName);
+
+  const html =
+    '<p>Renamed the old folder to “' + originalName + ' - old” and created a new folder called “' +
+    originalName + '”, owned by the secretary account.</p>' +
+    '<p><a href="' + newFolder.getUrl() + '" target="_blank">Open the new folder</a></p>' +
+    '<p><strong>Next steps:</strong> move every file and subfolder from “' + originalName +
+    ' - old” into this new folder, then delete “' + originalName + ' - old”. Any moved file still ' +
+    'owned by someone other than the secretary account will show up in a future audit.</p>';
+
+  return page(html);
+}
+
+// Confirms a file or folder is actually somewhere under FOLDER_ID before
+// this script will touch it, walking every parent chain (an item can
+// technically have more than one) rather than trusting the caller. `seen`
+// guards against a cycle, which shouldn't happen in real Drive data but
+// costs nothing to rule out.
+function isItemInAuditScope(item) {
   const seen = {};
   let queue = [];
-  const parents = file.getParents();
+  const parents = item.getParents();
   while (parents.hasNext()) queue.push(parents.next());
 
   let depth = 0;
