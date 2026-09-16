@@ -22,9 +22,7 @@ function onSignedIn(profile) {
 
   document.getElementById('homeFrame').src = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/preview`;
   document.getElementById('homeOpenLink').href = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/edit`;
-  // Grid view (rather than list) skips Drive's own Owner/Last modified
-  // columns, which is all we can control on a view Google renders itself.
-  document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#grid`;
+  document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#list`;
   // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
   // read-only preview and send people to Sheets itself to make changes.
   document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
