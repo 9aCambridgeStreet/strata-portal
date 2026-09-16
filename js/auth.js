@@ -24,15 +24,17 @@ function saveSession(profile) {
 }
 
 function loadSession() {
+  // Google's own ID token carries a 1-hour `exp`, but the portal only ever
+  // uses that token once, to check committee membership at sign-in - it is
+  // never re-sent anywhere afterwards, so an expired `exp` says nothing about
+  // whether this person should still be signed in. Membership is Drive
+  // sharing, not token freshness (see the Security Review in the technical
+  // design document), so a saved session stays valid here until the visitor
+  // signs out, deliberately outliving the token's own `exp`.
   const raw = localStorage.getItem(AUTH_STORAGE_KEY);
   if (!raw) return null;
   try {
-    const profile = JSON.parse(raw);
-    if (profile.exp && Date.now() / 1000 > profile.exp) {
-      clearSession();
-      return null;
-    }
-    return profile;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
