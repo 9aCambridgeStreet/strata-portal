@@ -20,7 +20,12 @@ function onSignedIn(profile) {
   document.getElementById('userName').textContent = profile.name || profile.email;
   document.getElementById('userAvatar').src = profile.picture || '';
 
-  document.getElementById('homeFrame').src = CONFIG.homeViewerUrl;
+  // Falls back to the old direct-embed if homeViewerUrl hasn't been filled
+  // in yet (see "Rendering the Home Doc as a Responsive Page" in the
+  // README) - keeps the Home tab working, just not phone-friendly, until
+  // that one-time Apps Script deployment is done.
+  document.getElementById('homeFrame').src = CONFIG.homeViewerUrl
+    || `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/preview`;
   document.getElementById('homeOpenLink').href = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/edit`;
   document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#list`;
   // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
