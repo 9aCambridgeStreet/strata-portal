@@ -28,6 +28,8 @@ function onSignedIn(profile) {
   document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
   document.getElementById('driveOpenLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
   document.getElementById('sheetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit`;
+  document.getElementById('processesFrame').src = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/preview`;
+  document.getElementById('processesOpenLink').href = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/edit`;
   document.getElementById('slackLink').href = CONFIG.slackUrl;
 
   showTab('home');

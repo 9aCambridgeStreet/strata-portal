@@ -19,6 +19,11 @@ const CONFIG = {
   // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
   portalHomeDocId: '1c25axkB_KaTPaZXksvpXh1FFL-BCOhj-NNyD7vOuOIc',
 
+  // The ID of the Google Doc shown on the Agreed Processes tab, embedded
+  // directly the same way as the Home, Documents and To-Do tabs.
+  // Find it in the doc's URL: docs.google.com/document/d/THIS_PART/edit
+  agreedProcessesDocId: '12IZwt4u3C9uHAdsAnkthy5rnqwIgLxQNzdlP3-ZI85Q',
+
   // The ID of the shared Google Drive folder to embed on the Documents tab.
   // Sharing this folder is what grants portal access. If it changes, update
   // FOLDER_ID in apps-script/Code.gs too.
