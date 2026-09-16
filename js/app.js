@@ -22,11 +22,10 @@ function onSignedIn(profile) {
 
   document.getElementById('homeFrame').src = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/preview`;
   document.getElementById('homeOpenLink').href = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/edit`;
-  document.getElementById('driveFrame').src = `https://drive.google.com/embeddedfolderview?id=${CONFIG.driveFolderId}#list`;
+  document.getElementById('documentsLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
   // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
   // read-only preview and send people to Sheets itself to make changes.
   document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
-  document.getElementById('driveOpenLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
   document.getElementById('sheetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit`;
   document.getElementById('processesFrame').src = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/preview`;
   document.getElementById('processesOpenLink').href = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/edit`;
@@ -38,24 +37,8 @@ function onSignedIn(profile) {
   // person can tell instantly which one they want; the page can't.
   document.getElementById('slackAppLink').href = 'slack://open';
   document.getElementById('slackBrowserLink').href = CONFIG.slackUrl;
-  loadDocumentsFileCount();
 
   showTab('home');
-}
-
-// Asks the membership script for how many files are in the Documents folder,
-// since Drive's own embedded view has no built-in count. Fails silently
-// (leaves the toolbar blank) if the script is on an older version that
-// doesn't support this yet, or the request errors for any other reason.
-function loadDocumentsFileCount() {
-  fetch(`${CONFIG.membershipUrl}?action=count`)
-    .then((res) => res.json())
-    .then((data) => {
-      if (typeof data.count !== 'number') return;
-      const el = document.getElementById('documentsFileCount');
-      el.textContent = `${data.count} file${data.count === 1 ? '' : 's'}`;
-    })
-    .catch(() => {});
 }
 
 function showTab(tabName) {

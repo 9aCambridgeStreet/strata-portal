@@ -188,11 +188,6 @@ main {
   text-decoration: underline;
 }
 
-.file-count {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
 .embed-frame {
   flex: 1;
   width: 100%;

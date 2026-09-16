@@ -20,11 +20,11 @@ The person needs a Google account for that email address to sign in.
   portal sends it the Google sign-in token. The script verifies the token with
   Google, then checks whether that email is on the Documents folder's sharing
   list (owner, editors or viewers). Results are cached for 60 seconds.
-- **Documents**, **To-Do List** and **10 Year Budget** are iframes showing the
-  Drive folder and two Google Sheets, so Drive's own sharing also protects the
-  content itself. Documents uses Drive's list view; the file count next to its
-  "Open in Google Drive" link comes from the membership script's
-  `?action=count` endpoint, not from Drive's own embed.
+- **To-Do List** and **10 Year Budget** are iframes showing two Google
+  Sheets, so Drive's own sharing also protects the content itself.
+  **Documents** is a plain link straight to the Drive folder (opens in a new
+  tab) rather than an embedded tab, so there's no separate iframe or "Open in
+  Google Drive" toolbar link for it.
 - **Slack** is two plain links, not one auto-detecting one: "Slack App"
   (`slack://open`, the URL scheme both the mobile and desktop Slack apps
   register) and "Slack Browser" (`CONFIG.slackUrl`). An earlier version tried
@@ -95,9 +95,10 @@ twice every week.
 
 A page in this portal is just a tab: one entry in the nav bar, and one panel
 in `index.html` holding an iframe pointed at something in Google Drive. The
-Home, Documents and To-Do List tabs are all built from the same three pieces,
-so the fastest way to add a fourth is to copy one of them and change the
-details.
+Home and To-Do List tabs are built from the same three pieces, so the
+fastest way to add another is to copy one of them and change the details.
+(Documents is the exception: it's a plain link straight to the Drive folder,
+not a tab, see the nav item's `documentsLink` id in `index.html`.)
 
 **Here's How:**
 
@@ -131,9 +132,10 @@ details.
    document.getElementById('handbookOpenLink').href = `https://docs.google.com/document/d/${CONFIG.handbookDocId}/edit`;
    ```
    A Google Sheet follows the same pattern with `spreadsheets/d/` in place of
-   `document/d/`. A Drive folder uses
-   `https://drive.google.com/embeddedfolderview?id=FOLDER_ID#list` instead,
-   the way the Documents tab already does.
+   `document/d/`. A Drive folder can either embed the same way with
+   `https://drive.google.com/embeddedfolderview?id=FOLDER_ID#list`, or link
+   straight out to `https://drive.google.com/drive/folders/FOLDER_ID` the way
+   the Documents nav item does (see `documentsLink` in `js/app.js`).
 
 5. Bump the `?v=N` on `config.js` and `app.js` in `index.html`, since both
    files just changed.
