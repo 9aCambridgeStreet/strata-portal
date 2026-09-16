@@ -70,7 +70,17 @@ function showTab(tabName) {
 // register the same scheme, so this one link handles phone, tablet and PC.
 // If no app answers within SLACK_APP_TIMEOUT_MS (no installed app, or a
 // browser that blocks custom schemes), it falls back to CONFIG.slackUrl.
-const SLACK_APP_TIMEOUT_MS = 700;
+//
+// 700ms was too eager: on a real iPad, the app opens fine but the page's
+// blur event can land after the timer already fired, so the fallback opened
+// a second, unwanted Slack-login tab even on success. Longer timeout, and
+// watching visibilitychange as well as blur (iOS backgrounds the tab for the
+// app switch either way), makes that false trigger far less likely. The
+// fallback also now replaces the current tab rather than opening a new one,
+// since a `window.open` called this long after the original tap sits
+// outside Safari's "was this a real user gesture" window and can silently
+// no-op instead of actually opening - simpler to just navigate directly.
+const SLACK_APP_TIMEOUT_MS = 1500;
 
 function initSlackLink() {
   const link = document.getElementById('slackLink');
@@ -78,17 +88,19 @@ function initSlackLink() {
     event.preventDefault();
 
     let handedOff = false;
-    const onBlur = () => {
+    const markHandedOff = () => {
       handedOff = true;
     };
-    window.addEventListener('blur', onBlur, { once: true });
+    window.addEventListener('blur', markHandedOff, { once: true });
+    document.addEventListener('visibilitychange', markHandedOff, { once: true });
 
     window.location.href = 'slack://open';
 
     setTimeout(() => {
-      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('blur', markHandedOff);
+      document.removeEventListener('visibilitychange', markHandedOff);
       if (!handedOff) {
-        window.open(link.href, '_blank', 'noopener');
+        window.location.href = link.href;
       }
     }, SLACK_APP_TIMEOUT_MS);
   });
