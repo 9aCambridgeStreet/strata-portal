@@ -62,6 +62,38 @@ function showTab(tabName) {
   });
 }
 
+// The Slack web login (browser tab -> credentials -> confirmation code) has
+// no way to stay signed in inside an iOS/iPadOS home-screen portal, since
+// that flow opens in an isolated browser context with its own cookie jar,
+// separate from both Safari and the Slack app. `slack://open` is Slack's own
+// URL scheme for "open the installed app" - the desktop apps (Windows/Mac)
+// register the same scheme, so this one link handles phone, tablet and PC.
+// If no app answers within SLACK_APP_TIMEOUT_MS (no installed app, or a
+// browser that blocks custom schemes), it falls back to CONFIG.slackUrl.
+const SLACK_APP_TIMEOUT_MS = 700;
+
+function initSlackLink() {
+  const link = document.getElementById('slackLink');
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+
+    let handedOff = false;
+    const onBlur = () => {
+      handedOff = true;
+    };
+    window.addEventListener('blur', onBlur, { once: true });
+
+    window.location.href = 'slack://open';
+
+    setTimeout(() => {
+      window.removeEventListener('blur', onBlur);
+      if (!handedOff) {
+        window.open(link.href, '_blank', 'noopener');
+      }
+    }, SLACK_APP_TIMEOUT_MS);
+  });
+}
+
 function initPortal() {
   document.title = CONFIG.strataName;
   document.querySelectorAll('[data-portal-name]').forEach((el) => {
@@ -73,6 +105,7 @@ function initPortal() {
   });
 
   document.getElementById('signOutButton').addEventListener('click', signOut);
+  initSlackLink();
 
   initAuth();
 }
