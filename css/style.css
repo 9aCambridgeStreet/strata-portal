@@ -211,12 +211,8 @@ main {
 
 .frame-toolbar {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.frame-toolbar.toolbar-left {
   justify-content: flex-start;
+  margin-bottom: 8px;
 }
 
 .frame-toolbar a {
