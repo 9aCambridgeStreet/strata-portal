@@ -359,12 +359,27 @@ function copyFileAction(fileId) {
     } catch (err) {
       trashError = err.message;
     }
-    html += trashError
-      ? '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail + '): ' +
-        trashError + '. Move it to Trash yourself in Drive so there aren’t two live copies.</p>'
-      : '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, so only ' +
-        'the new copy is visible in the folder now. It’s recoverable from Drive’s Trash for ' +
-        'about 30 days if that turns out to be wrong.</p>';
+    if (trashError) {
+      // Trashing needs at least Edit access, and the secretary account only
+      // inherits whatever access the file's actual owner has granted it,
+      // which can differ from what the person actioning this email has on
+      // the same file. getAccess() says exactly what that is, rather than
+      // leaving it a guess from a generic "Access denied" message.
+      let secretaryAccess;
+      try {
+        secretaryAccess = file.getAccess(SECRETARY_EMAIL).toString();
+      } catch (accessErr) {
+        secretaryAccess = 'unknown';
+      }
+      html += '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail +
+        '): the secretary account currently has ' + secretaryAccess + ' access to this file, ' +
+        'not enough to trash it. Move it to Trash yourself in Drive so there aren’t two live ' +
+        'copies.</p>';
+    } else {
+      html += '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, ' +
+        'so only the new copy is visible in the folder now. It’s recoverable from Drive’s Trash ' +
+        'for about 30 days if that turns out to be wrong.</p>';
+    }
   }
 
   return page(html);
