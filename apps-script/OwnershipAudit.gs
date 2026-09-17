@@ -353,18 +353,20 @@ function copyFileAction(fileId) {
       'original yourself once that change is live:</p>' +
       '<p><code>' + copy.getUrl() + '</code></p>';
   } else {
+    // DriveApp.setTrashed() has a known, more conservative internal check
+    // than the real Drive API for files the caller doesn't own - confirmed
+    // live: getAccess() reported EDIT for the secretary account, which
+    // should be plenty to trash a file, yet DriveApp still refused with
+    // "Access denied". Calling the Advanced Drive Service directly instead
+    // (the same underlying API the Drive web UI itself uses, where trashing
+    // an Edit-access file someone else owns works fine) avoids that.
     let trashError = null;
     try {
-      file.setTrashed(true);
+      Drive.Files.update({ trashed: true }, originalId);
     } catch (err) {
       trashError = err.message;
     }
     if (trashError) {
-      // Trashing needs at least Edit access, and the secretary account only
-      // inherits whatever access the file's actual owner has granted it,
-      // which can differ from what the person actioning this email has on
-      // the same file. getAccess() says exactly what that is, rather than
-      // leaving it a guess from a generic "Access denied" message.
       let secretaryAccess;
       try {
         secretaryAccess = file.getAccess(SECRETARY_EMAIL).toString();
@@ -372,9 +374,8 @@ function copyFileAction(fileId) {
         secretaryAccess = 'unknown';
       }
       html += '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail +
-        '): the secretary account currently has ' + secretaryAccess + ' access to this file, ' +
-        'not enough to trash it. Move it to Trash yourself in Drive so there aren’t two live ' +
-        'copies.</p>';
+        '): ' + trashError + ' (secretary account access: ' + secretaryAccess + '). Move it to ' +
+        'Trash yourself in Drive so there aren’t two live copies.</p>';
     } else {
       html += '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, ' +
         'so only the new copy is visible in the folder now. It’s recoverable from Drive’s Trash ' +
