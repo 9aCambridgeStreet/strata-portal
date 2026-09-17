@@ -13,16 +13,24 @@
 
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const SECRETARY_EMAIL = 'secretary.9a.cambridge.st@gmail.com';
-const DEFAULT_NOTIFY_EMAILS = [SECRETARY_EMAIL];
 
-// Same "Portal Menu" Sheet Code.gs's getMenu() reads to build the live nav
-// bar - one row per tab, Link column points at the Drive file it embeds.
-// Read directly here (rather than js/config.js, which still has four old
-// file-ID fields nothing actually reads any more - loadMenu() in js/app.js
-// builds the nav entirely from this Sheet now) so this always reflects
-// what's actually live, not a hand-maintained snapshot that can drift.
+// Same Sheet Code.gs's getMenu() reads to build the live nav bar - one row
+// per tab, Link column points at the Drive file it embeds. Read directly
+// here (rather than js/config.js, which still has four old file-ID fields
+// nothing actually reads any more - loadMenu() in js/app.js builds the nav
+// entirely from this Sheet now) so this always reflects what's actually
+// live, not a hand-maintained snapshot that can drift. Referenced by ID
+// only, so renaming the Sheet itself (it started as "Portal Menu", now also
+// holds the ExtraAdminEmails table below) never needs a code change here.
 const MENU_SHEET_ID = '1RnmCjsRmNsnVCG-ZGh7zeDBWq3Qvwm3EeMLPzdklhrc';
 const MENU_TABLE_NAME = 'Menu';
+
+// A Table in the same Sheet, one column of email addresses (header row
+// aside), that a layperson can edit with zero code to change who gets the
+// ownership-audit email, beyond the secretary account, which always gets
+// it regardless of this list. Replaces the old notifyEmails Script
+// Property entirely, so there's one place to manage this, not two.
+const EXTRA_ADMIN_TABLE_NAME = 'ExtraAdminEmails';
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -84,7 +92,7 @@ function checkOwner(item, path, type, items) {
 function getMenuLinkedFileIds() {
   try {
     const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
-    const rows = getMenuTableRows(ss);
+    const rows = getNamedTableRows(ss, MENU_TABLE_NAME);
     const ids = {};
     rows.forEach(function (r) {
       const name = String(r[0] || '').trim();
@@ -97,10 +105,12 @@ function getMenuLinkedFileIds() {
   }
 }
 
-// Same Table lookup as Code.gs's getMenuTableRows(), duplicated rather than
-// called over HTTP so this audit doesn't depend on the Membership web app's
-// deployment being up or its URL never changing.
-function getMenuTableRows(ss) {
+// Same Table-lookup approach as Code.gs's getMenuTableRows() (there hardcoded
+// to the Menu table, duplicated rather than called over HTTP so this audit
+// doesn't depend on the Membership web app's deployment being up or its URL
+// never changing), generalized here to take any table name so this one
+// function also serves getExtraAdminEmails() below.
+function getNamedTableRows(ss, tableName) {
   const meta = Sheets.Spreadsheets.get(ss.getId(), {
     fields: 'sheets(properties(sheetId),tables(name,range))',
   });
@@ -109,13 +119,13 @@ function getMenuTableRows(ss) {
   let sheetId = null;
   (meta.sheets || []).forEach(function (sheet) {
     (sheet.tables || []).forEach(function (t) {
-      if (t.name === MENU_TABLE_NAME) {
+      if (t.name === tableName) {
         table = t;
         sheetId = sheet.properties.sheetId;
       }
     });
   });
-  if (!table) throw new Error('Table "' + MENU_TABLE_NAME + '" not found');
+  if (!table) throw new Error('Table "' + tableName + '" not found');
 
   const gridSheet = ss.getSheets().filter(function (s) {
     return s.getSheetId() === sheetId;
@@ -145,22 +155,31 @@ function testGetMenuLinkedFileIds() {
   Logger.log(JSON.stringify(getMenuLinkedFileIds(), null, 2));
 }
 
-// Who gets the audit email. Stored in Script Properties rather than
-// hardcoded, same pattern as setAlertEmails() in the "Strata Auto Backup"
-// script, so the recipient list can change without touching or redeploying
-// this file. Falls back to DEFAULT_NOTIFY_EMAILS until setNotifyEmails() is
-// ever run.
+// Who gets the audit email: the secretary account always, plus whoever is
+// listed in the ExtraAdminEmails table (one column, header row aside) in
+// the same Sheet as the portal menu - a layperson can add or remove people
+// there with no code and no redeploy. Falls back to secretary-only if that
+// table can't be read, same fail-safe reasoning as getMenuLinkedFileIds.
 function getNotifyEmails() {
-  const stored = PropertiesService.getScriptProperties().getProperty('notifyEmails');
-  if (!stored) return DEFAULT_NOTIFY_EMAILS;
-  return stored.split(',').map(function (e) { return e.trim(); }).filter(Boolean);
+  const extras = getExtraAdminEmails();
+  const seen = {};
+  return [SECRETARY_EMAIL].concat(extras).filter(function (e) {
+    if (seen[e]) return false;
+    seen[e] = true;
+    return true;
+  });
 }
 
-// Run this once from the editor (edit the string first) to change who gets
-// the audit email - takes effect immediately, no redeploy needed.
-// e.g. setNotifyEmails('secretary.9a.cambridge.st@gmail.com, someone@else.com')
-function setNotifyEmails(commaSeparatedList) {
-  PropertiesService.getScriptProperties().setProperty('notifyEmails', commaSeparatedList);
+function getExtraAdminEmails() {
+  try {
+    const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
+    const rows = getNamedTableRows(ss, EXTRA_ADMIN_TABLE_NAME);
+    return rows
+      .map(function (r) { return String(r[0] || '').trim().toLowerCase(); })
+      .filter(Boolean);
+  } catch (err) {
+    return [];
+  }
 }
 
 // Run this from the editor to see the current recipient list in the log.
@@ -264,10 +283,38 @@ function copyFileAction(fileId) {
     return page('<p>“' + file.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
   }
 
+  // Anyone on the notify list can click this link, and someone else may
+  // already have. If the original's already trashed, a previous click
+  // already fully processed it (the not-linked, auto-trash path). Report
+  // that plainly instead of quietly making a second, redundant copy.
+  if (file.isTrashed()) {
+    return page('<p>“' + file.getName() + '” has already been actioned, someone already made a ' +
+      'secretary-owned copy and trashed this original. Nothing more to do here.</p>');
+  }
+
   const originalId = file.getId();
   const originalName = file.getName();
   const parents = file.getParents();
   const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
+
+  // The original is deliberately left untrashed when it's menu-linked (or
+  // the menu couldn't be checked), so isTrashed() alone can't catch a
+  // repeat click in that case - check for an already-made secretary-owned
+  // copy sitting alongside it instead.
+  const siblings = parentFolder.getFilesByName(originalName);
+  while (siblings.hasNext()) {
+    const sibling = siblings.next();
+    if (sibling.getId() === originalId) continue;
+    const siblingOwner = sibling.getOwner();
+    if (siblingOwner && siblingOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
+      return page('<p>A secretary-owned copy of “' + originalName + '” already exists, someone ' +
+        'else already actioned this.</p>' +
+        '<p><a href="' + sibling.getUrl() + '" target="_blank">Open the existing copy</a></p>' +
+        '<p>Nothing more to do here - if this original hasn’t been swapped out and trashed yet, ' +
+        'finish that manually.</p>');
+    }
+  }
+
   const copy = file.makeCopy(originalName, parentFolder);
 
   let html =
@@ -337,6 +384,19 @@ function fixFolderAction(folderId) {
   const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
   if (ownerEmail === SECRETARY_EMAIL) {
     return page('<p>“' + folder.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
+  }
+
+  // Anyone on the notify list can click this link, and someone else may
+  // already have. This link always targets the same folder ID, and a
+  // previous click renames it in place (see below), so a repeat click sees
+  // its own earlier "- old" rename rather than a fresh, unactioned folder.
+  const currentName = folder.getName();
+  if (/ - old$/.test(currentName)) {
+    const cleanName = currentName.replace(/ - old$/, '');
+    return page('<p>This folder has already been actioned, someone already renamed it to “' +
+      currentName + '” and created a new “' + cleanName + '” folder alongside it.</p>' +
+      '<p>Nothing more to do here - if the contents haven’t been moved across and this old ' +
+      'folder deleted yet, finish that manually.</p>');
   }
 
   const originalName = folder.getName();
