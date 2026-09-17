@@ -512,12 +512,27 @@ function fixFolderAction(folderId) {
       movedNames.map(escapeHtml).join(', ') + '.</p>';
   }
 
-  html += stillInOld
-    ? '<p><strong>Next steps:</strong> everything remaining in “' + originalName +
+  if (stillInOld) {
+    html += '<p><strong>Next steps:</strong> everything remaining in “' + originalName +
       ' - old” is still owned by someone else. Fix each of those individually (their own audit ' +
       'entries have their own links), they’ll land straight in the new folder the same way once ' +
-      'fixed. Once “' + originalName + ' - old” is empty, delete it.</p>'
-    : '<p>“' + originalName + ' - old” is now empty, safe to delete.</p>';
+      'fixed. Once “' + originalName + ' - old” is empty, delete it.</p>';
+  } else {
+    // Worth attempting, same as the file trash step, even though the old
+    // folder's owner hasn't changed and this may well hit the same
+    // permission wall - a graceful fallback costs nothing if it does.
+    let trashError = null;
+    try {
+      Drive.Files.update({ trashed: true }, folder.getId());
+    } catch (err) {
+      trashError = err.message;
+    }
+    html += trashError
+      ? '<p>“' + originalName + ' - old” is now empty, but couldn’t be trashed automatically (' +
+        trashError + '). Delete it yourself in Drive.</p>'
+      : '<p>“' + originalName + ' - old” was empty, so it’s been trashed automatically, ' +
+        'recoverable from Drive’s Trash for about 30 days if that turns out to be wrong.</p>';
+  }
 
   return page(html);
 }
