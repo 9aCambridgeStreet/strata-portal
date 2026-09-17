@@ -219,11 +219,10 @@ function checkOwnership() {
   });
 
   const introHtml =
-    '<p>This email lists every file a committee member has loaded into the portal that they ' +
-    'still personally own. When a committee member adds a file, they keep ownership of it by ' +
-    'default, even though it sits inside a folder shared with the whole committee. Every file ' +
-    'needs to belong to the secretary account instead, not to any individual committee member. ' +
-    'This email steps through each file below so you can take ownership of it.</p>';
+    '<p>This email is to advise you about any files loaded by a committee member into the ' +
+    'portal. When a committee member loads a file, they retain ownership of that file. The ' +
+    'files need to be owned by the secretary account, not the committee members. This email ' +
+    'steps you through each of those files so that you can take ownership.</p>';
 
   MailApp.sendEmail({
     to: getNotifyEmails().join(','),
