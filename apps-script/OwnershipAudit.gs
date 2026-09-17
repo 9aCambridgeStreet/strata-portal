@@ -80,6 +80,12 @@ function walkChildren(folder, path, items) {
 }
 
 function checkOwner(item, path, type, items) {
+  // Drive's folder/file iterators are live queries, not a snapshot - if the
+  // tree is actively being changed (e.g. a fix action moving files around)
+  // at the exact moment this walk runs, next() can occasionally come back
+  // empty. Skip it rather than crash the whole audit; anything genuinely
+  // still wrong will show up again on the next run once things settle.
+  if (!item) return;
   const owner = item.getOwner();
   const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
   if (ownerEmail === SECRETARY_EMAIL) return;
