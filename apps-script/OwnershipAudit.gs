@@ -13,7 +13,7 @@
 
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const SECRETARY_EMAIL = 'secretary.9a.cambridge.st@gmail.com';
-const DEFAULT_NOTIFY_EMAILS = [SECRETARY_EMAIL, 'matthew.j.allington@gmail.com'];
+const DEFAULT_NOTIFY_EMAILS = [SECRETARY_EMAIL];
 
 // Same "Portal Menu" Sheet Code.gs's getMenu() reads to build the live nav
 // bar - one row per tab, Link column points at the Drive file it embeds.
