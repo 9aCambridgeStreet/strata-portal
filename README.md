@@ -192,9 +192,13 @@ and asks you to repoint its Link at the new copy's URL first, then trash
 the old one yourself once that's live. If the Sheet can't be read at all
 (renamed, restructured, a bad moment), it fails safe the same way, leaving
 the original untouched rather than risk trashing a live nav tab. This
-needed adding the same "Sheets" Advanced Service and a
-`spreadsheets.readonly` scope to `OwnershipAudit.appsscript.json` that
-Code.gs already uses for the same lookup.
+needed adding the same "Sheets" Advanced Service and a `spreadsheets`
+scope to `OwnershipAudit.appsscript.json` that Code.gs already uses for
+the same lookup (`spreadsheets.readonly` looked right and is enough for
+the Advanced Sheets Service call, but `SpreadsheetApp.openById()` itself
+needs the full `spreadsheets` scope even just to read - the readonly
+scope silently broke every menu-link check from the day this was built,
+until the error was finally logged and traced in September 2026).
 
 **Here's How (one-time setup):**
 
