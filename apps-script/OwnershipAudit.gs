@@ -14,6 +14,17 @@
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const SECRETARY_EMAIL = 'secretary.9a.cambridge.st@gmail.com';
 
+// Hardcoded rather than read via ScriptApp.getService().getUrl(), because
+// that call returns a "/dev" test URL (usable only by accounts with edit
+// access to this script project) rather than the real "/exec" deployment
+// URL when checkOwnership runs from the editor's Run button - and possibly
+// also from a time-driven trigger, not just manual runs. A "/dev" link in
+// the audit email would leave anyone in ExtraAdminEmails unable to open it.
+// Same pattern as membershipUrl in js/config.js: update this if the
+// deployment is ever recreated from scratch rather than redeployed as a
+// new version of the existing one (which keeps this URL unchanged).
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwvJtpsKsiIf3yisb3q-grm-jaLsfKsGi3oWdfOW7-qLPyY1ARHKW3ccK46nl7c4BlS1Q/exec';
+
 // Same Sheet Code.gs's getMenu() reads to build the live nav bar - one row
 // per tab, Link column points at the Drive file it embeds. Read directly
 // here (rather than js/config.js, which still has four old file-ID fields
@@ -196,7 +207,7 @@ function checkOwnership() {
   if (!items.length) return;
 
   const menu = getMenuLinkedFileIds();
-  const scriptUrl = ScriptApp.getService().getUrl();
+  const scriptUrl = WEB_APP_URL;
   const blocks = items.map(function (item, i) {
     const number = i + 1;
     const name = escapeHtml(item.name);

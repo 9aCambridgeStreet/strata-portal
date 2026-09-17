@@ -234,7 +234,11 @@ screen above needs no code at all.)
 
 **Updating the script:** same pattern as the others, edit
 `OwnershipAudit.gs` here, paste it into its Apps Script project, then
-**Deploy > Manage deployments > edit > New version**.
+**Deploy > Manage deployments > edit > New version**. Editing the existing
+deployment this way keeps `WEB_APP_URL` (hardcoded near the top of the
+file, all the copy/fix links in the audit email are built from it) valid.
+If this deployment is ever deleted and recreated from scratch rather than
+redeployed as a new version, `WEB_APP_URL` needs updating to match.
 
 ## Adding a New Page
 
