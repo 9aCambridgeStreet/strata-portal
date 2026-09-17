@@ -213,7 +213,8 @@ function checkOwnership() {
       '<p><b>File ' + number + ': ' + name + '</b><br>' +
       'Location: ' + path + '<br>' +
       'Currently owned by: ' + owner + '<br>' +
-      '<a href="' + copyUrl + '">Click here to take ownership</a><br>' +
+      '<a href="' + copyUrl + '">Click here to make a copy owned by the Secretary and delete the ' +
+      'uploaded version</a><br>' +
       note + '</p>'
     );
   });
