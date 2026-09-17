@@ -101,6 +101,7 @@ function getMenuLinkedFileIds() {
     });
     return { ok: true, ids: ids };
   } catch (err) {
+    Logger.log('getMenuLinkedFileIds failed: ' + err + (err.stack ? '\n' + err.stack : ''));
     return { ok: false, ids: {} };
   }
 }
@@ -178,6 +179,7 @@ function getExtraAdminEmails() {
       .map(function (r) { return String(r[0] || '').trim().toLowerCase(); })
       .filter(Boolean);
   } catch (err) {
+    Logger.log('getExtraAdminEmails failed: ' + err + (err.stack ? '\n' + err.stack : ''));
     return [];
   }
 }
