@@ -210,10 +210,11 @@ function checkOwnership() {
         'Location: ' + path + '<br>' +
         'Currently owned by: ' + owner + '<br>' +
         '<a href="' + fixUrl + '">Click here to fix this folder</a><br>' +
-        'This renames the old folder to &ldquo;' + name + ' - old&rdquo; and creates a new folder ' +
-        'called &ldquo;' + name + '&rdquo; owned by the secretary account. Move any files from the ' +
-        'old folder into the new one, then delete the old folder. Any moved files still owned by ' +
-        'another committee member will show up in a future audit.</p>'
+        'Clicking this link renames the old folder to &ldquo;' + name + ' - old&rdquo; and creates ' +
+        'a new folder called &ldquo;' + name + '&rdquo; owned by the secretary account. You then ' +
+        'need to manually move any files from the old folder into the new one, then manually ' +
+        'delete the old folder. Any moved files still owned by another committee member will show ' +
+        'up in a future audit, so don’t worry about ownership of those files for now.</p>'
       );
     }
 
