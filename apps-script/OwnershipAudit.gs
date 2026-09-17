@@ -206,15 +206,26 @@ function checkOwnership() {
   const items = auditFolderTree();
   if (!items.length) return;
 
+  // Files first, then folders, always - regardless of nesting. The tree
+  // walk above naturally interleaves a folder with its own children, but
+  // Matt wants every file actioned before any folder gets touched, so this
+  // reorders (a stable partition, not a re-sort - order within each group
+  // is unchanged) before numbering and building the email.
+  const orderedItems = items.filter(function (i) { return i.type === 'file'; })
+    .concat(items.filter(function (i) { return i.type === 'folder'; }));
+
   const menu = getMenuLinkedFileIds();
   const scriptUrl = WEB_APP_URL;
-  const blocks = items.map(function (item, i) {
-    const number = i + 1;
+  let fileNumber = 0;
+  let folderNumber = 0;
+  const blocks = orderedItems.map(function (item) {
     const name = escapeHtml(item.name);
     const path = escapeHtml(item.path);
     const owner = escapeHtml(item.owner);
 
     if (item.type === 'folder') {
+      folderNumber++;
+      const number = folderNumber;
       const fixUrl = scriptUrl + '?action=fixFolder&folderId=' + encodeURIComponent(item.id);
       return (
         '<p><b>Folder ' + number + ': ' + name + '</b><br>' +
@@ -229,6 +240,8 @@ function checkOwnership() {
       );
     }
 
+    fileNumber++;
+    const number = fileNumber;
     const copyUrl = scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id);
     const menuName = menu.ok ? menu.ids[item.id] : undefined;
     let note = '';
