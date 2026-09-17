@@ -309,7 +309,27 @@ function copyFileAction(fileId) {
   const originalId = file.getId();
   const originalName = file.getName();
   const parents = file.getParents();
-  const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
+  let parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
+
+  // If this file's current folder is itself a renamed "X - old" folder from
+  // an earlier folder fix, redirect the copy straight into the "X" folder
+  // created alongside it, rather than back into "X - old" - otherwise a
+  // file fixed after its folder just needs yet another manual move.
+  const parentName = parentFolder.getName();
+  if (/ - old$/.test(parentName)) {
+    const grandparents = parentFolder.getParents();
+    if (grandparents.hasNext()) {
+      const cleanParentName = parentName.replace(/ - old$/, '');
+      const siblingFolders = grandparents.next().getFoldersByName(cleanParentName);
+      if (siblingFolders.hasNext()) {
+        const candidate = siblingFolders.next();
+        const candidateOwner = candidate.getOwner();
+        if (candidateOwner && candidateOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
+          parentFolder = candidate;
+        }
+      }
+    }
+  }
 
   // The original is deliberately left untrashed when it's menu-linked (or
   // the menu couldn't be checked), so isTrashed() alone can't catch a
@@ -436,13 +456,49 @@ function fixFolderAction(folderId) {
   folder.setName(originalName + ' - old');
   const newFolder = parentFolder.createFolder(originalName);
 
-  const html =
+  // If a file or subfolder inside was fixed via its own "take ownership"
+  // link before this folder was fixed, it's already secretary-owned and can
+  // just be moved straight into the new folder - no need to leave that for
+  // a manual step too. Only items still owned by someone else are left
+  // behind in the renamed old folder, since those still need their own fix.
+  const movedNames = [];
+  const remainingFiles = folder.getFiles();
+  while (remainingFiles.hasNext()) {
+    const f = remainingFiles.next();
+    const fOwner = f.getOwner();
+    if (fOwner && fOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
+      f.moveTo(newFolder);
+      movedNames.push(f.getName());
+    }
+  }
+  const remainingFolders = folder.getFolders();
+  while (remainingFolders.hasNext()) {
+    const sub = remainingFolders.next();
+    const subOwner = sub.getOwner();
+    if (subOwner && subOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
+      sub.moveTo(newFolder);
+      movedNames.push(sub.getName());
+    }
+  }
+
+  const stillInOld = folder.getFiles().hasNext() || folder.getFolders().hasNext();
+
+  let html =
     '<p>Renamed the old folder to “' + originalName + ' - old” and created a new folder called “' +
     originalName + '”, owned by the secretary account.</p>' +
-    '<p><a href="' + newFolder.getUrl() + '" target="_blank">Open the new folder</a></p>' +
-    '<p><strong>Next steps:</strong> move every file and subfolder from “' + originalName +
-    ' - old” into this new folder, then delete “' + originalName + ' - old”. Any moved file still ' +
-    'owned by someone other than the secretary account will show up in a future audit.</p>';
+    '<p><a href="' + newFolder.getUrl() + '" target="_blank">Open the new folder</a></p>';
+
+  if (movedNames.length) {
+    html += '<p>Already secretary-owned, so moved straight across: ' +
+      movedNames.map(escapeHtml).join(', ') + '.</p>';
+  }
+
+  html += stillInOld
+    ? '<p><strong>Next steps:</strong> everything remaining in “' + originalName +
+      ' - old” is still owned by someone else. Fix each of those individually (their own audit ' +
+      'entries have their own links), they’ll land straight in the new folder the same way once ' +
+      'fixed. Once “' + originalName + ' - old” is empty, delete it.</p>'
+    : '<p>“' + originalName + ' - old” is now empty, safe to delete.</p>';
 
   return page(html);
 }
