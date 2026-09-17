@@ -303,7 +303,7 @@ function copyFileAction(fileId) {
   try {
     file = DriveApp.getFileById(fileId);
   } catch (err) {
-    return page('<p>Could not open that file. It may have been moved or deleted, or the link is wrong.</p>');
+    return page('<p>Could not open that file. It may have been moved or deleted already, or the link is wrong.</p>');
   }
 
   if (!isItemInAuditScope(file)) {
@@ -442,7 +442,7 @@ function fixFolderAction(folderId) {
   try {
     folder = DriveApp.getFolderById(folderId);
   } catch (err) {
-    return page('<p>Could not open that folder. It may have been moved or deleted, or the link is wrong.</p>');
+    return page('<p>Could not open that folder. It may have been moved or deleted already, or the link is wrong.</p>');
   }
 
   if (!isItemInAuditScope(folder)) {
