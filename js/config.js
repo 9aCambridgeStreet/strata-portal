@@ -39,6 +39,11 @@ const CONFIG = {
   // Find it in the sheet's URL: docs.google.com/spreadsheets/d/THIS_PART/edit
   sheetId: '1Knvz5_q8ImCxUp-CVDUJo5-7bnvOBwMhUSnzttE_bvo',
 
+  // Web app URL of the Voting Apps Script (apps-script/Voting.gs). Leave blank
+  // until it is deployed. The Votes tab appears when the Portal Menu sheet has
+  // a row whose link is exactly #votes.
+  votingUrl: '',
+
   // Full URL of the Slack workspace or channel to link to.
   slackUrl: 'https://9acambridgestreet.slack.com',
 };

@@ -74,6 +74,9 @@ async function handleCredentialResponse(response) {
     return;
   }
 
+  // Kept in memory only, so the Votes tab can act on this fresh sign-in
+  // without asking for a second one. Never saved to localStorage.
+  window.portalCredential = { token: response.credential, at: Date.now() };
   saveSession(profile);
   try {
     onSignedIn(profile);

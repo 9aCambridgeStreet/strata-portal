@@ -111,6 +111,29 @@ function renderMenu(items) {
   items
     .filter((item) => item.kind !== 'empty')
     .forEach((item, index) => {
+      // A menu row whose link is exactly "#votes" is the built-in voting
+      // tool (js/votes.js), not an embedded Google file or external link.
+      if (item.link === '#votes') {
+        const tabName = slugify(item.name, index);
+        if (!firstTab) firstTab = tabName;
+
+        const navEl = document.createElement('div');
+        navEl.className = 'nav-item';
+        navEl.dataset.tab = tabName;
+        navEl.setAttribute('role', 'button');
+        navEl.textContent = item.name;
+        navEl.addEventListener('click', () => showTab(tabName));
+        nav.appendChild(navEl);
+
+        const panel = document.createElement('div');
+        panel.className = 'tab-panel votes-panel';
+        panel.dataset.tab = tabName;
+        panel.dataset.votes = '1';
+        panel.hidden = true;
+        main.appendChild(panel);
+        return;
+      }
+
       if (!embeddable[item.kind]) {
         // 'link' kind: a plain external link, no tab/panel of its own.
         const navEl = document.createElement('a');
@@ -179,6 +202,14 @@ function showTab(tabName) {
   document.querySelectorAll('.nav-item').forEach((item) => {
     item.classList.toggle('active', item.dataset.tab === tabName);
   });
+
+  // The voting tab loads its data when first shown, and again on each
+  // revisit so the tallies are never stale.
+  const votesPanel = document.querySelector(`.tab-panel[data-tab="${tabName}"][data-votes]`);
+  if (votesPanel) {
+    if (CONFIG.votingUrl) votesOpen(votesPanel);
+    else votesPanel.textContent = 'Voting is not set up yet.';
+  }
 }
 
 // Phone-only: the nav is a plain horizontal tab strip down to tablet width

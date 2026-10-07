@@ -110,6 +110,7 @@ depends on any individual member's accounts.
 | Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
 | Ownership audit script | Separate Apps Script project "Strata Ownership Audit" (see "Ownership Audit" below) |
+| Voting script and ledger | Separate Apps Script project "Strata Voting" and the "Strata Votes (Ledger)" sheet (see "Committee Voting" below) |
 | Documents | Drive folder "Strata Committee Documents" |
 | To-do list | "Committee To-Do List" sheet, in the folder's Planning subfolder |
 | 10 Year Budget | "10 Year Sinking Fund Forecast - Costs Estimates" sheet, in the folder's Planning subfolder |
@@ -239,6 +240,86 @@ deployment this way keeps `WEB_APP_URL` (hardcoded near the top of the
 file, all the copy/fix links in the audit email are built from it) valid.
 If this deployment is ever deleted and recreated from scratch rather than
 redeployed as a new version, `WEB_APP_URL` needs updating to match.
+
+## Committee Voting
+
+The Votes tab lets any committee member put a proposal to a vote, and lets
+every member cast For, Against or Abstain. The ballot is **named**, so
+everyone can see how everyone voted, and the result is a **simple majority
+of those voting**, with abstentions counted as neither for nor against. A tie
+does not pass.
+
+### How It Works
+
+Think of the ledger as a numbered, bound minute book. Every proposal, every
+vote and every close is written on the next line, and each line carries a
+fingerprint (a SHA-256 hash) of its own contents plus the fingerprint of the
+line before. Change one word on line 12 and the fingerprint on line 12 no
+longer matches, which breaks line 13, and 14, and every line after that. You
+can't tidy up history without leaving the evidence.
+
+Three things make a vote trustworthy:
+
+- **Identity.** Every request carries the Google sign-in token of the person
+  voting. `Voting.gs` verifies it with Google, the same way `Code.gs` does at
+  sign-in, so a vote can only ever be cast as the person Google says is
+  signed in. Membership is still the sharing list on the Documents folder.
+- **A receipt in your own inbox.** Each vote emails the voter the choice, the
+  time, the ledger entry number and its hash. If the ledger ever shows
+  something different, that email is the proof.
+- **A hash on the record.** When voting closes, every member is emailed the
+  result, how each member voted, and the final ledger hash, which locks in
+  everything before it.
+
+Members can change a vote until voting closes. A change is a new ledger entry,
+never an overwrite, so the full history stays visible. The member who created a
+proposal can close it early, otherwise it closes at the time they set (an hour
+at most after the deadline passes, usually the moment anyone opens the tab).
+
+**Note:** the ledger is tamper-evident, not tamper-proof. Whoever controls the
+secretary account could in theory edit the sheet. The emailed receipts and the
+emailed final hash are what make that visible, because they sit in members'
+own inboxes where the secretary can't reach them.
+
+### Here's How: Set It Up
+
+1. Sign in to Google as the secretary account and create a new Apps Script
+   project named "Strata Voting".
+2. Paste in `apps-script/Voting.gs`, then show `appsscript.json` under
+   Project Settings and paste in `apps-script/Voting.appsscript.json`.
+3. Select `setupVoting` in the function dropdown and click Run, approving the
+   permissions. It creates the "Strata Votes (Ledger)" sheet, schedules an
+   hourly close of expired proposals, and logs the sheet address. Running it
+   twice is safe.
+4. Drag the sheet into the Planning subfolder so members can view the raw
+   ledger.
+5. Click Deploy, New deployment, Web app, Execute as **Me**, access **Anyone**,
+   and copy the web app URL.
+6. Paste that URL into `votingUrl` in `js/config.js` and push.
+7. Add a row to the Portal Menu sheet with the name `Votes` and the link
+   exactly `#votes`. That row is what makes the tab appear, so the tool stays
+   hidden until you decide to switch it on.
+
+**Tip:** to change `Voting.gs` later, paste it into the same project and use
+Deploy, Manage deployments, edit, New version. A brand new deployment changes
+the URL and breaks `votingUrl`. Like every script in this repo, editing the
+file here doesn't update the live script.
+
+### Auditing a Result
+
+Open the Votes tab and click **Audit ledger**, then **Verify ledger**. The
+browser downloads every entry and recomputes the whole chain itself, without
+trusting the server, then reports either "Ledger intact" with the head hash,
+or the first entry that no longer matches. Compare the head hash with the one
+in the "vote closed" emails. **Download CSV** saves the full ledger for the
+minutes. Run `testVerifyLedger` in the Apps Script editor for the same check
+from the server side.
+
+**Note:** the sign-in the portal saves in the browser has no token, because the
+token is only used once. The Votes tab therefore uses the token from your
+current sign-in, and asks you to sign in with Google again if that has gone
+more than about 25 minutes old. Casting a vote needs a sign-in from the last
+30 minutes.
 
 ## Adding a New Page
 
