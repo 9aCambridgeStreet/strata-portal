@@ -350,6 +350,19 @@ name, with the email on hover, and the CSV keeps the email.
 **Note:** someone who has never signed in shows as the part of their email
 before the @ (for example "Paul") until their first sign-in.
 
+### Accounts That Can't Vote
+
+The secretary account and any service account can open the Votes tab and read
+everything, but can't create a proposal, vote or close one. The secretary
+account is a shared mailbox, not a person, so a vote from it on a shared device
+(an easy account to pick by mistake) would be nobody's real vote. The block
+lives in the voting script, in `NON_VOTING_ACCOUNTS` near the top of
+`Voting.gs`, so a changed page can't get around it.
+
+**Note:** a vote already recorded under one of these accounts stays in the
+ledger, because nothing is ever deleted, but every tally and voter list
+ignores it. That keeps the chain valid and the results honest.
+
 ### When A Member Leaves
 
 Votes already cast stay exactly as they are. The ledger only ever records

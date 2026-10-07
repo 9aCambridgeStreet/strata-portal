@@ -523,3 +523,12 @@ main {
   max-width: 90vw;
   z-index: 50;
 }
+
+.votes-warning {
+  background: #fdf1e3;
+  border: 1px solid #f0cf9d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 14px 0 0;
+  font-size: 0.92rem;
+}

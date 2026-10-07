@@ -103,6 +103,7 @@ async function votesApi(action, body) {
 }
 
 const VOTES_ERRORS = {
+  cannot_vote: 'This is a shared account, not a committee member, so it cannot vote. Sign out and sign in with your own Google account.',
   not_member: 'This account is not on the committee documents folder.',
   voting_closed: 'Voting on that proposal has closed.',
   bad_title: 'Give the proposal a title (up to 200 characters).',
@@ -201,14 +202,16 @@ function votesRender() {
   const open = data.proposals.filter((p) => p.status === 'open');
   const closed = data.proposals.filter((p) => p.status === 'closed');
 
+  const canVote = data.canVote !== false;
   const toolbar = el('div', { class: 'votes-toolbar' }, [
-    el('button', { type: 'button', class: 'votes-btn primary', text: votesState.showForm ? 'Cancel' : 'New proposal', onclick: () => { votesState.showForm = !votesState.showForm; votesRender(); } }),
+    canVote && el('button', { type: 'button', class: 'votes-btn primary', text: votesState.showForm ? 'Cancel' : 'New proposal', onclick: () => { votesState.showForm = !votesState.showForm; votesRender(); } }),
     el('button', { type: 'button', class: 'votes-btn', text: 'Refresh', onclick: votesRefresh }),
     el('button', { type: 'button', class: 'votes-btn', text: votesState.showAudit ? 'Hide audit ledger' : 'Audit ledger', onclick: () => { votesState.showAudit = !votesState.showAudit; votesRender(); } }),
   ]);
 
   const parts = [toolbar];
-  if (votesState.showForm) parts.push(votesForm());
+  if (!canVote) parts.push(el('p', { class: 'votes-warning', text: 'You are signed in with a shared account, which can view votes but not cast them. Sign out and sign in with your own Google account to vote.' }));
+  if (canVote && votesState.showForm) parts.push(votesForm());
   if (votesState.showAudit) parts.push(votesAuditBox());
   parts.push(el('h2', { class: 'votes-heading', text: 'Open proposals' }));
   if (!open.length) parts.push(el('p', { class: 'votes-note', text: 'Nothing is open for voting right now.' }));
@@ -234,7 +237,7 @@ function proposalCard(p) {
   card.append(counts);
   if (!isOpen) card.append(el('p', { class: 'vote-result ' + (t.outcome === 'PASSED' ? 'passed' : 'failed'), text: t.outcome }));
 
-  if (isOpen) {
+  if (isOpen && votesState.data.canVote !== false) {
     const row = el('div', { class: 'vote-choices' });
     Object.keys(CHOICE_LABELS).forEach((choice) => {
       row.append(el('button', {

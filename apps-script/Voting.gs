@@ -24,6 +24,13 @@ const SESSION_DAYS = 30; // how long a vote pass (see mintSession) lasts
 const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
 const CHOICES = ['FOR', 'AGAINST', 'ABSTAIN'];
 const LEDGER_HEADERS = ['seq', 'timestamp', 'type', 'proposalId', 'actor', 'evidence', 'data', 'prevHash', 'hash'];
+// Shared accounts that can read everything but never create, vote or close:
+// the secretary account is a mailbox the committee shares, not a person, and
+// a vote cast from it on a shared device (it is easy to pick by mistake) would
+// be nobody's real vote. Service accounts are blocked the same way. Votes
+// already in the ledger under these accounts stay there, but are ignored in
+// every tally and voter list (see buildState), so the ledger chain stays valid.
+const NON_VOTING_ACCOUNTS = ['secretary.9a.cambridge.st@gmail.com'];
 const MIN_OPEN_MINUTES = 5;
 const MAX_OPEN_DAYS = 90;
 
@@ -58,6 +65,7 @@ function handle(req) {
   }
 
   const isWrite = req.action === 'create' || req.action === 'vote' || req.action === 'close';
+  if (isWrite && !canVote(who.email)) return { error: 'cannot_vote' };
   if (isWrite && who.via === 'google' && who.ageSeconds > FRESH_TOKEN_SECONDS) return { error: 'token_stale' };
 
   closeExpiredProposals();
@@ -189,6 +197,11 @@ function authenticateSession(token) {
   return { email: String(data.e).toLowerCase(), sub: String(data.s), iat: Number(data.i), ageSeconds: 0, via: 'session' };
 }
 
+function canVote(email) {
+  const e = String(email).toLowerCase();
+  return NON_VOTING_ACCOUNTS.indexOf(e) === -1 && !/\.gserviceaccount\.com$/.test(e);
+}
+
 function memberEmails() {
   const cache = CacheService.getScriptCache();
   const cached = cache.get('members');
@@ -298,7 +311,7 @@ function buildState(entries) {
       order.push(e.proposalId);
     } else if (e.type === 'VOTE') {
       const p = proposals[e.proposalId];
-      if (p && p.status === 'open') {
+      if (p && p.status === 'open' && canVote(e.actor)) {
         p.votes[e.actor] = { voter: e.actor, choice: e.data, timestamp: e.timestamp, seq: e.seq, hash: e.hash };
       }
     } else if (e.type === 'CLOSE') {
@@ -355,6 +368,7 @@ function listProposals(who) {
   return {
     me: who.email,
     meName: nameOf(who.email, names),
+    canVote: canVote(who.email),
     proposals: state.order.slice().reverse().map(function (id) {
       return publicProposal(state.proposals[id], who.email, names);
     }),
