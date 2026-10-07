@@ -42,7 +42,7 @@ const CONFIG = {
   // Web app URL of the Voting Apps Script (apps-script/Voting.gs). Leave blank
   // until it is deployed. The Votes tab appears when the Portal Menu sheet has
   // a row whose link is exactly #votes.
-  votingUrl: '',
+  votingUrl: 'https://script.google.com/macros/s/AKfycbxZ240MHpGrXDxo0fsYJy-Ob6yICUvPQAubSp7b_zscMu8mi5ogW2R2zgnwLCKYjFXY/exec',
 
   // Full URL of the Slack workspace or channel to link to.
   slackUrl: 'https://9acambridgestreet.slack.com',
