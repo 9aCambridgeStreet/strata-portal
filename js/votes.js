@@ -85,11 +85,16 @@ function votesMessage(text) {
   votesState.panel.replaceChildren(el('p', { class: 'votes-note', text }));
 }
 
-function votesSignIn(message) {
+function votesSignIn(message, keepAutoSelect) {
   const button = el('div', { class: 'votes-signin-button' });
+  // The portal remembers who is signed in, so hint that account to Google.
+  // Without it a shared device offers whichever Google account it used last,
+  // which on the committee iPad can be the secretary account.
+  const saved = (typeof loadSession === 'function' && loadSession()) || {};
+  const hint = saved.email || '';
   votesState.panel.replaceChildren(
     el('div', { class: 'votes-signin' }, [
-      el('p', { class: 'votes-note', text: message || 'Sign in with Google to view and cast committee votes.' }),
+      el('p', { class: 'votes-note', text: message || (hint ? `Confirm it is you: sign in with Google as ${hint} to view and cast committee votes.` : 'Sign in with Google to view and cast committee votes.') }),
       button,
     ])
   );
@@ -99,18 +104,33 @@ function votesSignIn(message) {
   }
   google.accounts.id.initialize({
     client_id: CONFIG.googleClientId,
+    login_hint: hint || undefined,
+    auto_select: !!keepAutoSelect,
     callback: (response) => {
+      let email = '';
+      try {
+        email = String(decodeJwt(response.credential).email || '').toLowerCase();
+      } catch (err) {
+        email = '';
+      }
+      // Never let a different Google account vote under this portal session.
+      if (hint && email !== hint.toLowerCase()) {
+        google.accounts.id.disableAutoSelect();
+        votesSignIn(`You signed in to Google as ${email || 'a different account'}, but this portal is signed in as ${hint}. Choose ${hint} (use "Use another account" if it isn't listed).`, false);
+        return;
+      }
       votesState.token = response.credential;
       votesState.tokenAt = Date.now();
       votesRefresh();
     },
   });
-  google.accounts.id.renderButton(button, { theme: 'outline', size: 'large', shape: 'pill' });
+  google.accounts.id.renderButton(button, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with' });
+  if (keepAutoSelect) google.accounts.id.prompt();
 }
 
 async function votesRefresh() {
   if (!votesToken()) {
-    votesSignIn(votesState.data ? 'Your sign-in has timed out. Sign in again to continue.' : null);
+    votesSignIn(votesState.data ? 'Your sign-in has timed out. Sign in again to continue.' : null, true);
     return;
   }
   if (!votesState.data) votesMessage('Loading votes…');
