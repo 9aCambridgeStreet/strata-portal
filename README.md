@@ -44,12 +44,12 @@ building pass someone has already swiped through the front door. Taking
 their name off the tenant list at reception doesn't march them back out of
 the lobby, it just stops the next swipe from working.
 
-So if a member is already signed in, or reloads the portal before their
-local session expires, they still see the Home tab and the full nav bar,
-because the portal isn't asking Drive again, it's reading what it already
-decided last time. That cached session lasts for as long as the Google
-sign-in token stays valid, normally about an hour, or until the member
-clicks **Sign out**.
+So if a member is already signed in, or reloads the portal, they still see the
+Home tab and the full nav bar, because the portal isn't asking Drive again, it's
+reading what it already decided last time. That saved session lasts until the
+member clicks **Sign out** or clears that browser's storage. It no longer
+expires with the Google sign-in token (the one-hour limit was removed on 17
+September 2026), because the token is only ever used once, at sign-in.
 
 ### The Documents, Sheets and Drive Folder
 
@@ -72,6 +72,11 @@ also caches the membership list for 60 seconds (`CACHE_SECONDS` in
 `apps-script/Code.gs`), a separate cache from the session one above. Wait a
 minute after unsharing before testing that a removed member is properly
 locked out, so you're not chasing a false positive.
+
+**Tip:** open the portal in Safari or Chrome, not inside the Slack app's
+built-in browser. That browser blocks the cookies Google needs to show an
+embedded Doc or Sheet, so the tab shows "Can't access your Google Account".
+The "Open in Google Sheets" link above the grey box works either way.
 
 ## How it works
 
