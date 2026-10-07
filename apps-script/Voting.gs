@@ -90,6 +90,8 @@ function authenticate(token) {
   const email = String(info.email).toLowerCase();
   if (memberEmails().indexOf(email) === -1) return { error: 'not_member' };
 
+  rememberName(email, info.name);
+
   const iat = Number(info.iat);
   return {
     email: email,
@@ -98,6 +100,41 @@ function authenticate(token) {
     ageSeconds: Math.floor(Date.now() / 1000) - iat,
     via: 'google',
   };
+}
+
+// --- Names ---
+// The ledger always records the verified email address, which is the identity
+// Google proved. People see display names instead: Google puts the name from
+// the account profile in every ID token, so each sign-in refreshes this
+// email-to-name list, kept in the "names" Script Property. Someone who has
+// never signed in shows as the part of their email before the @, until their
+// first sign-in fills it in. Departed members stay in the list so their old
+// votes still read properly.
+
+function readNames() {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty('names') || '{}');
+  } catch (err) {
+    return {};
+  }
+}
+
+function rememberName(email, name) {
+  name = String(name || '').trim().slice(0, 80);
+  if (!name) return;
+  if (readNames()[email] === name) return;
+  withLock(function () {
+    const fresh = readNames();
+    fresh[email] = name;
+    PropertiesService.getScriptProperties().setProperty('names', JSON.stringify(fresh));
+  });
+}
+
+function nameOf(email, names) {
+  const map = names || readNames();
+  if (map[email]) return map[email];
+  const local = String(email).split('@')[0];
+  return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
 // --- Vote pass ---
@@ -286,14 +323,18 @@ function tally(proposal) {
   return t;
 }
 
-function publicProposal(p, me) {
-  const votes = Object.keys(p.votes).map(function (k) { return p.votes[k]; });
+function publicProposal(p, me, names) {
+  const votes = Object.keys(p.votes).map(function (k) {
+    const v = p.votes[k];
+    return { voter: v.voter, voterName: nameOf(v.voter, names), choice: v.choice, timestamp: v.timestamp, seq: v.seq, hash: v.hash };
+  });
   return {
     id: p.id,
     title: p.title,
     description: p.description,
     docLink: p.docLink,
     createdBy: p.createdBy,
+    createdByName: nameOf(p.createdBy, names),
     createdAt: p.createdAt,
     closesAt: p.closesAt,
     status: p.status,
@@ -310,18 +351,19 @@ function publicProposal(p, me) {
 
 function listProposals(who) {
   const state = buildState(readLedger());
+  const names = readNames();
   return {
     me: who.email,
-    memberCount: memberEmails().length,
+    meName: nameOf(who.email, names),
     proposals: state.order.slice().reverse().map(function (id) {
-      return publicProposal(state.proposals[id], who.email);
+      return publicProposal(state.proposals[id], who.email, names);
     }),
   };
 }
 
 function ledgerDump() {
   const entries = readLedger();
-  return { entries: entries, head: entries.length ? entries[entries.length - 1].hash : GENESIS_HASH };
+  return { entries: entries, head: entries.length ? entries[entries.length - 1].hash : GENESIS_HASH, names: readNames() };
 }
 
 function evidenceFor(who) {
@@ -357,7 +399,7 @@ function createProposal(who, req) {
   });
 
   safeMail(memberEmails(), 'New committee proposal: ' + title,
-    who.email + ' has put a proposal to the committee.\n\n' +
+    nameOf(who.email) + ' has put a proposal to the committee.\n\n' +
     title + '\n' + (description ? '\n' + description + '\n' : '') +
     '\nVoting closes: ' + sydney(closes.toISOString()) + '\n' +
     '\nVote in the portal: ' + PORTAL_URL + '\n');
@@ -448,8 +490,9 @@ function mailClosed(closeEntry) {
   const state = buildState(readLedger());
   const p = state.proposals[closeEntry.proposalId];
   const t = tally(p);
+  const names = readNames();
   const lines = Object.keys(p.votes).map(function (k) {
-    return '  ' + p.votes[k].voter + ': ' + p.votes[k].choice;
+    return '  ' + nameOf(p.votes[k].voter, names) + ': ' + p.votes[k].choice;
   });
   safeMail(memberEmails(), 'Vote closed: ' + p.title + ' (' + t.outcome + ')',
     'Voting has closed.\n\n' +

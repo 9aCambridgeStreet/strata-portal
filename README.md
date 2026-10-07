@@ -337,6 +337,19 @@ iPad can't vote by accident.
 Property in the "Strata Voting" project. The next request creates a new
 secret and everyone's pass stops working.
 
+### Names, Not Email Addresses
+
+People see display names everywhere on the Votes tab and in the emails. The
+name comes from the Google account profile, which Google puts in the sign-in
+token, so each sign-in refreshes a small email-to-name list in the "names"
+Script Property of the "Strata Voting" project. The ledger itself always
+records the verified email address, because that is the identity Google
+proved and a display name can be ambiguous. The Audit ledger table shows the
+name, with the email on hover, and the CSV keeps the email.
+
+**Note:** someone who has never signed in shows as the part of their email
+before the @ (for example "Paul") until their first sign-in.
+
 ### When A Member Leaves
 
 Votes already cast stay exactly as they are. The ledger only ever records

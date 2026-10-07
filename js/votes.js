@@ -137,7 +137,7 @@ function votesSignIn(message, keepAutoSelect) {
   const hint = saved.email || '';
   votesState.panel.replaceChildren(
     el('div', { class: 'votes-signin' }, [
-      el('p', { class: 'votes-note', text: message || (hint ? `Confirm it is you: sign in with Google as ${hint} to view and cast committee votes.` : 'Sign in with Google to view and cast committee votes.') }),
+      el('p', { class: 'votes-note', text: message || (hint ? `Confirm it is you: sign in with Google as ${saved.name || hint} to view and cast committee votes.` : 'Sign in with Google to view and cast committee votes.') }),
       button,
     ])
   );
@@ -226,7 +226,7 @@ function proposalCard(p) {
   const card = el('article', { class: 'vote-card' + (isOpen ? '' : ' is-closed') });
 
   card.append(el('h3', { text: p.title }));
-  card.append(el('p', { class: 'vote-meta', text: `${p.id} · proposed by ${p.createdBy} · ${isOpen ? 'closes ' + fmtDate(p.closesAt) : 'closed ' + fmtDate(p.closedAt)}` }));
+  card.append(el('p', { class: 'vote-meta', text: `${p.id} · proposed by ${p.createdByName} · ${isOpen ? 'closes ' + fmtDate(p.closesAt) : 'closed ' + fmtDate(p.closedAt)}` }));
   if (p.description) card.append(el('p', { class: 'vote-desc', text: p.description }));
   if (p.docLink) card.append(el('p', {}, [el('a', { href: p.docLink, target: '_blank', rel: 'noopener', text: 'Read the supporting document ↗' })]));
 
@@ -254,7 +254,7 @@ function proposalCard(p) {
   const list = el('ul', { class: 'vote-voters' });
   p.votes.forEach((v) => {
     list.append(el('li', {}, [
-      el('span', { class: 'voter', text: v.voter }),
+      el('span', { class: 'voter', text: v.voterName }),
       el('span', { class: 'choice-tag choice-' + v.choice.toLowerCase(), text: CHOICE_LABELS[v.choice] }),
       el('span', { class: 'vote-time', text: `${fmtDate(v.timestamp)} · entry ${v.seq} · ${shortHash(v.hash)}` }),
     ]));
@@ -418,13 +418,18 @@ async function runAudit(out, download) {
   const table = el('table', { class: 'audit-table' }, [
     el('thead', {}, [el('tr', {}, ['#', 'When', 'Type', 'Proposal', 'By', 'Data', 'Hash'].map((h) => el('th', { text: h })))]),
     el('tbody', {}, data.entries.map((e) => el('tr', {}, [
-      e.seq, fmtDate(e.timestamp), e.type, e.proposalId, e.actor, e.data, shortHash(e.hash),
-    ].map((c) => el('td', { text: c }))))),
+      e.seq, fmtDate(e.timestamp), e.type, e.proposalId, auditName(e.actor, data.names), e.data, shortHash(e.hash),
+    ].map((c, i) => el('td', { text: c, title: i === 4 ? e.actor : '' }))))),
   ]);
   parts.push(el('div', { class: 'audit-scroll' }, [table]));
   out.replaceChildren(...parts);
 
   if (download) downloadLedgerCsv(data.entries);
+}
+
+// The ledger holds emails; people read names. The email stays on hover.
+function auditName(actor, names) {
+  return (names && names[actor]) || actor;
 }
 
 function downloadLedgerCsv(entries) {
