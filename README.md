@@ -315,11 +315,35 @@ in the "vote closed" emails. **Download CSV** saves the full ledger for the
 minutes. Run `testVerifyLedger` in the Apps Script editor for the same check
 from the server side.
 
-**Note:** the sign-in the portal saves in the browser has no token, because the
-token is only used once. The Votes tab therefore uses the token from your
-current sign-in, and asks you to sign in with Google again if that has gone
-more than about 25 minutes old. Casting a vote needs a sign-in from the last
-30 minutes.
+### Signing In To Vote
+
+Members sign in once, to the portal, and that's the only sign-in. At that
+moment the voting script trades the Google sign-in for a **vote pass**, a
+token the script signs itself and the browser keeps for 30 days. The Votes
+tab uses the pass, so there's no second Google prompt, including after a
+reload. Think of it as a wristband handed over at the front door: it proves
+you were checked in, and the bar still checks the guest list every time you
+order.
+
+**Note:** the pass doesn't grant membership. The script checks the Documents
+folder sharing list on every request, so removing someone from the folder
+stops them voting at once, pass or not. Someone who signed in to the portal
+before voting existed has no pass yet, so they see one Google sign-in on the
+Votes tab, and never again after that. The tab also refuses a Google account
+that doesn't match the portal sign-in, so the secretary account on a shared
+iPad can't vote by accident.
+
+**Tip:** to sign every pass out at once, delete the `sessionSecret` Script
+Property in the "Strata Voting" project. The next request creates a new
+secret and everyone's pass stops working.
+
+### When A Member Leaves
+
+Votes already cast stay exactly as they are. The ledger only ever records
+entries and never removes them, and nothing checks membership when it reads
+old results, so a former member's votes remain in the tallies, the voter list,
+the results emails and the audit. Their access ends the moment you unshare
+the folder, so they can't vote or view anything new.
 
 ## Adding a New Page
 

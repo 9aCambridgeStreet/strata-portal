@@ -42,6 +42,7 @@ function loadSession() {
 
 function clearSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  localStorage.removeItem('strataPortal.voteSession');
 }
 
 async function checkMembership(credential) {
@@ -77,6 +78,7 @@ async function handleCredentialResponse(response) {
   // Kept in memory only, so the Votes tab can act on this fresh sign-in
   // without asking for a second one. Never saved to localStorage.
   window.portalCredential = { token: response.credential, at: Date.now() };
+  if (typeof votesMintSession === 'function') votesMintSession(response.credential);
   saveSession(profile);
   try {
     onSignedIn(profile);

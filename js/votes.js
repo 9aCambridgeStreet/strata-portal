@@ -34,7 +34,47 @@ function shortHash(hash) {
   return hash ? hash.slice(0, 10) + '…' : '';
 }
 
+// A "vote pass": the voting script trades one Google sign-in for a token it
+// signs itself, good for 30 days, so members never see a second sign-in. The
+// script still checks committee membership on every request.
+const VOTE_SESSION_KEY = 'strataPortal.voteSession';
+
+function readVoteSession() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(VOTE_SESSION_KEY));
+    const saved = (typeof loadSession === 'function' && loadSession()) || {};
+    const sameUser = !saved.email || stored.email === String(saved.email).toLowerCase();
+    if (stored && stored.token && stored.exp > Date.now() && sameUser) return stored;
+  } catch (err) {
+    // missing or unreadable, treated as no pass
+  }
+  return null;
+}
+
+function clearVoteSession() {
+  try {
+    localStorage.removeItem(VOTE_SESSION_KEY);
+  } catch (err) {
+    // storage blocked, nothing to clear
+  }
+}
+
+async function votesMintSession(credential) {
+  if (!CONFIG.votingUrl || !credential) return;
+  try {
+    const res = await fetch(CONFIG.votingUrl, { method: 'POST', body: JSON.stringify({ action: 'session', token: credential }) });
+    const data = await res.json();
+    if (data.session) {
+      localStorage.setItem(VOTE_SESSION_KEY, JSON.stringify({ token: data.session, email: data.email, exp: data.expiresAt }));
+    }
+  } catch (err) {
+    // No pass this time, voting falls back to asking for a Google sign-in.
+  }
+}
+
 function votesToken() {
+  const pass = readVoteSession();
+  if (pass) return pass.token;
   if (votesState.token && Date.now() - votesState.tokenAt < VOTES_TOKEN_MAX_AGE_MS) return votesState.token;
   const fresh = window.portalCredential;
   if (fresh && Date.now() - fresh.at < VOTES_TOKEN_MAX_AGE_MS) {
@@ -55,7 +95,10 @@ async function votesApi(action, body) {
   });
   if (!res.ok) return { error: 'http_' + res.status };
   const data = await res.json();
-  if (['invalid_token', 'token_stale', 'missing_token'].includes(data.error)) votesState.token = null;
+  if (['invalid_token', 'token_stale', 'missing_token'].includes(data.error)) {
+    votesState.token = null;
+    if (token.indexOf('S1.') === 0) clearVoteSession(); // expired or revoked pass
+  }
   return data;
 }
 
@@ -121,7 +164,7 @@ function votesSignIn(message, keepAutoSelect) {
       }
       votesState.token = response.credential;
       votesState.tokenAt = Date.now();
-      votesRefresh();
+      votesMintSession(response.credential).then(votesRefresh);
     },
   });
   google.accounts.id.renderButton(button, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with' });
@@ -217,7 +260,7 @@ function proposalCard(p) {
     ]));
   });
   card.append(el('details', { class: 'vote-detail' }, [
-    el('summary', { role: 'button', text: `Who voted (${p.votes.length} of ${votesState.data.memberCount})` }),
+    el('summary', { role: 'button', text: `Who voted (${p.votes.length})` }),
     p.votes.length ? list : el('p', { class: 'votes-note', text: 'No votes yet.' }),
   ]));
   if (!isOpen) card.append(el('p', { class: 'vote-final', text: `Final ledger hash: ${p.closeHash}` }));

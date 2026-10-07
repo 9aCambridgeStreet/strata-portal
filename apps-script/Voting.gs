@@ -19,7 +19,8 @@ const CLIENT_ID = '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleuser
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
 const PORTAL_URL = 'https://9acambridgestreet.github.io/strata-portal/';
 const MEMBER_CACHE_SECONDS = 60;
-const FRESH_TOKEN_SECONDS = 30 * 60; // writes need a sign-in within the last 30 minutes
+const FRESH_TOKEN_SECONDS = 30 * 60; // a raw Google token must be this fresh to write
+const SESSION_DAYS = 30; // how long a vote pass (see mintSession) lasts
 const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
 const CHOICES = ['FOR', 'AGAINST', 'ABSTAIN'];
 const LEDGER_HEADERS = ['seq', 'timestamp', 'type', 'proposalId', 'actor', 'evidence', 'data', 'prevHash', 'hash'];
@@ -49,8 +50,15 @@ function handle(req) {
   const who = authenticate(req.token);
   if (who.error) return { error: who.error };
 
+  // Trade a Google sign-in for a vote pass. Only a real Google token can mint
+  // one, never another pass.
+  if (req.action === 'session') {
+    if (who.via !== 'google') return { error: 'invalid_token' };
+    return mintSession(who);
+  }
+
   const isWrite = req.action === 'create' || req.action === 'vote' || req.action === 'close';
-  if (isWrite && who.ageSeconds > FRESH_TOKEN_SECONDS) return { error: 'token_stale' };
+  if (isWrite && who.via === 'google' && who.ageSeconds > FRESH_TOKEN_SECONDS) return { error: 'token_stale' };
 
   closeExpiredProposals();
 
@@ -68,6 +76,7 @@ function handle(req) {
 
 function authenticate(token) {
   if (!token) return { error: 'missing_token' };
+  if (String(token).indexOf('S1.') === 0) return authenticateSession(token);
   const res = UrlFetchApp.fetch(
     'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token),
     { muteHttpExceptions: true }
@@ -87,7 +96,60 @@ function authenticate(token) {
     sub: String(info.sub),
     iat: iat,
     ageSeconds: Math.floor(Date.now() / 1000) - iat,
+    via: 'google',
   };
+}
+
+// --- Vote pass ---
+// The portal only signs a member in with Google once, then remembers them in
+// the browser. To vote without a second Google prompt, the portal trades that
+// one sign-in for a "vote pass": a token signed by this script (HMAC-SHA256
+// with a secret only this project knows) that names the member and expires in
+// SESSION_DAYS. Membership is still checked live against the Drive folder on
+// every request, so removing someone from the folder ends their access
+// immediately, pass or no pass. Deleting the sessionSecret Script Property
+// invalidates every pass at once.
+
+function sessionSecret() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty('sessionSecret');
+  if (secret) return secret;
+  return withLock(function () {
+    let again = props.getProperty('sessionSecret');
+    if (!again) {
+      again = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+      props.setProperty('sessionSecret', again);
+    }
+    return again;
+  });
+}
+
+function signPayload(payload) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, sessionSecret()));
+}
+
+function mintSession(who) {
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + SESSION_DAYS * 86400;
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({ e: who.email, s: who.sub, i: now, x: exp }));
+  return { session: 'S1.' + payload + '.' + signPayload(payload), email: who.email, expiresAt: exp * 1000 };
+}
+
+function authenticateSession(token) {
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return { error: 'invalid_token' };
+  if (signPayload(parts[1]) !== parts[2]) return { error: 'invalid_token' };
+
+  let data;
+  try {
+    data = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString());
+  } catch (err) {
+    return { error: 'invalid_token' };
+  }
+  if (!data.e || Math.floor(Date.now() / 1000) >= Number(data.x)) return { error: 'invalid_token' };
+  if (memberEmails().indexOf(String(data.e).toLowerCase()) === -1) return { error: 'not_member' };
+
+  return { email: String(data.e).toLowerCase(), sub: String(data.s), iat: Number(data.i), ageSeconds: 0, via: 'session' };
 }
 
 function memberEmails() {
@@ -263,9 +325,10 @@ function ledgerDump() {
 }
 
 function evidenceFor(who) {
-  // Google's own account id and the sign-in time, kept in the ledger as proof
-  // of which signed-in identity cast the entry.
-  return who.sub + '|' + who.iat;
+  // Google's own account id, the time that identity was verified (the Google
+  // sign-in, or the vote pass minted from it) and which of the two was used,
+  // kept in the ledger as proof of which signed-in identity cast the entry.
+  return who.sub + '|' + who.iat + '|' + who.via;
 }
 
 function createProposal(who, req) {
