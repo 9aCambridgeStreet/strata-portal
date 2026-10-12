@@ -412,16 +412,23 @@ function createProposal(who, req) {
     }));
   });
 
-  safeMail(memberEmails(), 'New committee proposal: ' + title,
-    nameOf(who.email) + ' has put a proposal to the committee.\n\n' +
-    title + '\n' + (description ? '\n' + description + '\n' : '') +
-    '\nVoting closes: ' + sydney(closes.toISOString()) + '\n' +
-    '\nVote in the portal: ' + PORTAL_URL + '\n');
+  const mail = proposalEmail({
+    id: entry.proposalId,
+    title: title,
+    description: description,
+    docLink: docLink,
+    closesAt: closes.toISOString(),
+    createdByName: nameOf(who.email),
+  });
+  // Only the people the folder is shared with, not the owner mailbox or the
+  // Slack export service account (same filter that decides who can vote).
+  safeMail(memberEmails().filter(canVote), mail.subject, mail.body, mail.htmlBody);
 
   return { ok: true, id: entry.proposalId };
 }
 
 function castVote(who, req) {
+  if (!canVote(who.email)) return { error: 'cannot_vote' }; // also checked in handle(); kept here so no caller can skip it
   const choice = String(req.choice || '').toUpperCase();
   if (CHOICES.indexOf(choice) === -1) return { error: 'bad_choice' };
 
@@ -431,22 +438,24 @@ function castVote(who, req) {
     if (!p) return { error: 'no_such_proposal' };
     if (p.status !== 'open' || Date.now() >= new Date(p.closesAt).getTime()) return { error: 'voting_closed' };
     if (p.votes[who.email] && p.votes[who.email].choice === choice) return { ok: true, unchanged: true };
+    const changed = !!p.votes[who.email]; // they had already voted, so this is a change
     const entry = appendEntry('VOTE', p.id, who.email, evidenceFor(who), choice);
-    return { ok: true, entry: entry, title: p.title };
+    return { ok: true, entry: entry, title: p.title, changed: changed };
   });
   if (!result.entry) return result;
 
   const e = result.entry;
   safeMail([who.email], 'Your vote receipt: ' + result.title,
-    'Your vote has been recorded.\n\n' +
+    (result.changed ? 'Your vote has been recorded with your change.' : 'Your vote has been recorded.') + '\n\n' +
     'Proposal: ' + result.title + ' (' + e.proposalId + ')\n' +
     'Your vote: ' + e.data + '\n' +
     'Recorded: ' + sydney(e.timestamp) + '\n' +
     'Ledger entry: ' + e.seq + '\n' +
-    'Entry hash: ' + e.hash + '\n\n' +
-    'Keep this email. If the ledger entry for your vote ever shows a different choice or hash, ' +
-    'this receipt proves what was recorded. You can change your vote until voting closes; ' +
-    'each change is a new ledger entry and gets its own receipt.\n');
+    '\nNote: All results are saved and stored online in a ledger using a chain hash.\n' +
+    'The chain hash for your vote is: ' + e.hash + '\n' +
+    'Creating a chain hash ensures the integrity of historical voting, guaranteeing nothing has changed. ' +
+    'If the chain hash changes, a vote has been changed. Keep this email as your record of the vote.\n\n' +
+    'You can change your vote until voting closes; each change is a new ledger entry and gets its own receipt.\n');
 
   return { ok: true, seq: e.seq, hash: e.hash };
 }
@@ -503,30 +512,112 @@ function closeExpiredProposals() {
 function mailClosed(closeEntry) {
   const state = buildState(readLedger());
   const p = state.proposals[closeEntry.proposalId];
-  const t = tally(p);
   const names = readNames();
-  const lines = Object.keys(p.votes).map(function (k) {
-    return '  ' + nameOf(p.votes[k].voter, names) + ': ' + p.votes[k].choice;
+  const voters = Object.keys(p.votes).map(function (k) {
+    return { name: nameOf(p.votes[k].voter, names), choice: p.votes[k].choice };
   });
-  safeMail(memberEmails(), 'Vote closed: ' + p.title + ' (' + t.outcome + ')',
-    'Voting has closed.\n\n' +
-    p.title + ' (' + p.id + ')\n\n' +
-    'Result: ' + t.outcome + '\n' +
+  const mail = closedEmail({
+    id: p.id,
+    title: p.title,
+    outcome: tally(p).outcome,
+    tally: tally(p),
+    voters: voters,
+    hash: closeEntry.hash,
+  });
+  safeMail(memberEmails().filter(canVote), mail.subject, mail.body, mail.htmlBody);
+}
+
+// The "vote closed" result sent to every member: the outcome, the count, how
+// each member voted, the final ledger hash, and a note that the result is kept
+// permanently online. Returns plain text plus an HTML version.
+function closedEmail(c) {
+  const t = c.tally;
+  const perm = 'The result of this vote is permanently stored online in the portal ledger for future reference.';
+  const note = 'Note: All results are saved and stored online in a ledger using a chain hash.';
+  const hashLine = 'The chain hash for this vote is: ';
+  const proof = 'Creating a chain hash ensures the integrity of historical voting, guaranteeing nothing has changed. ' +
+    'If the chain hash changes, a vote has been changed. Keep this email as your record of the vote.';
+
+  const text =
+    'Voting has closed on the proposal: ' + c.title + '\n\n' +
+    'Result: ' + c.outcome + '\n' +
     'For: ' + t.FOR + '   Against: ' + t.AGAINST + '   Abstain: ' + t.ABSTAIN + '\n\n' +
-    'How each member voted:\n' + (lines.length ? lines.join('\n') : '  (no votes)') + '\n\n' +
-    'Final ledger hash: ' + closeEntry.hash + '\n' +
-    'Keep this email. Anyone can check the portal ledger against this hash: if any vote had ' +
-    'been altered after this point, the hash would no longer match.\n\n' +
-    PORTAL_URL + '\n');
+    'How each member voted:\n' +
+    (c.voters.length ? c.voters.map(function (v) { return '* ' + v.name + ': ' + v.choice + '\n'; }).join('') : '* (no votes)\n') +
+    '\n' + perm + '\n\n' +
+    'View the ledger in the voting portal: ' + PORTAL_URL + '\n\n' +
+    note + '\n' + hashLine + c.hash + '\n' + proof + '\n';
+
+  const esc = function (s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  };
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px">' +
+    '<p>Voting has closed on the proposal: <strong>' + esc(c.title) + '</strong></p>' +
+    '<p><strong>Result:</strong> ' + esc(c.outcome) + '<br>' +
+    'For: ' + t.FOR + ' &nbsp; Against: ' + t.AGAINST + ' &nbsp; Abstain: ' + t.ABSTAIN + '</p>' +
+    '<p>How each member voted:</p>' +
+    '<ul>' + (c.voters.length
+      ? c.voters.map(function (v) { return '<li>' + esc(v.name) + ': ' + esc(v.choice) + '</li>'; }).join('')
+      : '<li>(no votes)</li>') + '</ul>' +
+    '<p>' + esc(perm) + '</p>' +
+    '<p><a href="' + PORTAL_URL + '" style="color:#1a0dab;text-decoration:underline">View the ledger in the voting portal</a>.</p>' +
+    '<p>' + esc(note) + '<br>' + esc(hashLine) + '<span style="word-break:break-all">' + esc(c.hash) + '</span><br>' + esc(proof) + '</p>' +
+    '</div>';
+
+  return { subject: 'Vote closed: ' + c.title + ' (' + c.outcome + ')', body: text, htmlBody: html };
 }
 
 // --- Helpers ---
 
-function safeMail(recipients, subject, body) {
+// The "new proposal" announcement sent to every member: the proposal, the
+// choices they can vote, a link to the portal, and a reminder that voting needs
+// a Google sign-in. Returns plain text plus an HTML version.
+function proposalEmail(p) {
+  const closes = sydney(p.closesAt);
+  const choices = CHOICES.map(function (c) { return c.charAt(0) + c.slice(1).toLowerCase(); });
+  const signIn = 'To vote you may be asked to sign in to the Strata Committee Portal with your Google account. ' +
+    'You can change your vote any time until voting closes.';
+
+  const text =
+    p.createdByName + ' has put a new proposal to the strata committee that requires your vote.\n\n' +
+    'Proposal: ' + p.title + '\n' +
+    (p.description ? p.description + '\n' : '') +
+    (p.docLink ? 'Supporting document: ' + p.docLink + '\n' : '') +
+    '\nYour voting options are:\n' +
+    choices.map(function (c) { return '* ' + c + '\n'; }).join('') +
+    '\nVoting closes: ' + closes + '\n\n' +
+    'Go to the voting portal to cast your vote: ' + PORTAL_URL + '\n\n' +
+    signIn + '\n';
+
+  const esc = function (s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  };
+  const html =
+    '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px">' +
+    '<p>' + esc(p.createdByName) + ' has put a new proposal to the strata committee that requires your vote.</p>' +
+    '<p><strong>Proposal:</strong> ' + esc(p.title) + '</p>' +
+    (p.description ? '<p style="white-space:pre-wrap">' + esc(p.description) + '</p>' : '') +
+    (p.docLink ? '<p>Supporting document: <a href="' + esc(p.docLink) + '" style="color:#1a0dab">' + esc(p.docLink) + '</a></p>' : '') +
+    '<p>Your voting options are:</p>' +
+    '<ul>' + choices.map(function (c) { return '<li>' + c + '</li>'; }).join('') + '</ul>' +
+    '<p><strong>Voting closes:</strong> ' + esc(closes) + '</p>' +
+    // Plain dark-blue underlined link, no background: a coloured button copied
+    // white text that vanished in some mail clients.
+    '<p><a href="' + PORTAL_URL + '" style="color:#1a0dab;text-decoration:underline">Go to the voting portal</a> to cast your vote.</p>' +
+    '<p>' + esc(signIn) + '</p>' +
+    '</div>';
+
+  return { subject: 'New committee proposal: ' + p.title, body: text, htmlBody: html };
+}
+
+function safeMail(recipients, subject, body, htmlBody) {
   try {
     const unique = recipients.filter(function (r, i) { return r && recipients.indexOf(r) === i; });
     if (!unique.length) return;
-    MailApp.sendEmail({ to: unique.join(','), subject: subject, body: body });
+    const msg = { to: unique.join(','), subject: subject, body: body };
+    if (htmlBody) msg.htmlBody = htmlBody;
+    MailApp.sendEmail(msg);
   } catch (err) {
     console.error('mail failed: ' + err); // never let an email problem undo a recorded vote
   }
@@ -577,6 +668,39 @@ function setupVoting() {
   if (!hasTrigger) ScriptApp.newTrigger('closeExpiredProposals').timeBased().everyHours(1).create();
 
   Logger.log('Ledger created: ' + ss.getUrl() + '\nDrag it into the Strata Committee Documents folder so members can view it.');
+}
+
+// Run from the editor to send ONE sample "new proposal" email to TEST_EMAIL
+// only. Touches neither the ledger nor the member list.
+const TEST_EMAIL = 'matthew.j.allington@gmail.com';
+function testProposalEmail() {
+  const mail = proposalEmail({
+    id: 'TEST',
+    title: 'Replace the lobby carpet',
+    description: 'Three quotes have been received. The recommended quote is $8,400 including GST.\nThe work would take two days.',
+    docLink: '',
+    closesAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    createdByName: 'Test Sender',
+  });
+  MailApp.sendEmail({ to: TEST_EMAIL, subject: '[TEST] ' + mail.subject, body: mail.body, htmlBody: mail.htmlBody });
+  Logger.log('Test email sent to ' + TEST_EMAIL);
+}
+
+// Run from the editor to send ONE sample "vote closed" email to TEST_EMAIL only.
+function testClosedEmail() {
+  const mail = closedEmail({
+    id: 'TEST',
+    title: 'Replace the lobby carpet',
+    outcome: 'PASSED',
+    tally: { FOR: 3, AGAINST: 1, ABSTAIN: 0 },
+    voters: [
+      { name: 'Matt', choice: 'FOR' }, { name: 'Kiarnie', choice: 'FOR' },
+      { name: 'Kristy', choice: 'FOR' }, { name: 'Paul', choice: 'AGAINST' },
+    ],
+    hash: sha256Hex('sample'),
+  });
+  MailApp.sendEmail({ to: TEST_EMAIL, subject: '[TEST] ' + mail.subject, body: mail.body, htmlBody: mail.htmlBody });
+  Logger.log('Test email sent to ' + TEST_EMAIL);
 }
 
 // Run from the editor to confirm the ledger chain is intact (also shown in
