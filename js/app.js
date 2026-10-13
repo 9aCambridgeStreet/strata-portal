@@ -95,11 +95,34 @@ function slugify(name, index) {
   return (slug || 'tab') + '-' + index;
 }
 
+// Each tab gets a shareable URL hash (e.g. #voting) built from its menu
+// name alone, so the link survives the menu being reordered. tabName (with
+// its index) stays the internal id; this maps hash -> tabName.
+let tabHashes = {};
+
+function hashFor(name, used) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'tab';
+  let hash = base;
+  for (let n = 2; used[hash]; n++) hash = base + '-' + n;
+  return hash;
+}
+
+function tabFromLocationHash() {
+  const hash = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
+  return hash ? tabHashes[hash] || null : null;
+}
+
+window.addEventListener('hashchange', () => {
+  const tabName = tabFromLocationHash();
+  if (tabName) showTab(tabName, true);
+});
+
 function renderMenu(items) {
   const nav = document.getElementById('portalNav');
   const main = document.getElementById('portalMain');
   nav.innerHTML = '';
   main.innerHTML = '';
+  tabHashes = {};
 
   // 'folder' (a Drive folder link, e.g. the Documents row) is deliberately
   // NOT embeddable - Drive's own folder-view iframe is a clunky, read-only
@@ -115,6 +138,7 @@ function renderMenu(items) {
       // tool (js/votes.js), not an embedded Google file or external link.
       if (item.link === '#votes') {
         const tabName = slugify(item.name, index);
+        tabHashes[hashFor(item.name, tabHashes)] = tabName;
         if (!firstTab) firstTab = tabName;
 
         const navEl = document.createElement('div');
@@ -147,6 +171,7 @@ function renderMenu(items) {
       }
 
       const tabName = slugify(item.name, index);
+      tabHashes[hashFor(item.name, tabHashes)] = tabName;
       if (!firstTab) firstTab = tabName;
 
       const navEl = document.createElement('div');
@@ -192,10 +217,19 @@ function renderMenu(items) {
       main.appendChild(panel);
     });
 
-  if (firstTab) showTab(firstTab);
+  // A shared link like #voting opens that tab; otherwise the first tab.
+  const linked = tabFromLocationHash();
+  if (linked || firstTab) showTab(linked || firstTab, true);
 }
 
-function showTab(tabName) {
+// fromHash: the change came from the URL (or the default first tab), so
+// leave the address bar alone rather than rewriting it.
+function showTab(tabName, fromHash) {
+  if (!fromHash) {
+    const hash = Object.keys(tabHashes).find((h) => tabHashes[h] === tabName);
+    if (hash && location.hash !== '#' + hash) history.replaceState(null, '', '#' + hash);
+  }
+
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     panel.hidden = panel.dataset.tab !== tabName;
   });
