@@ -17,7 +17,7 @@
 
 const CLIENT_ID = '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleusercontent.com';
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
-const PORTAL_URL = 'https://9acambridgestreet.github.io/strata-portal/';
+const PORTAL_URL = 'https://9acambridgestreet.github.io/strata-portal/#voting';
 const MEMBER_CACHE_SECONDS = 60;
 const FRESH_TOKEN_SECONDS = 30 * 60; // a raw Google token must be this fresh to write
 const SESSION_DAYS = 30; // how long a vote pass (see mintSession) lasts
