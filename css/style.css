@@ -382,6 +382,22 @@ a.votes-btn {
   text-decoration: none;
 }
 
+.vote-comment-input {
+  display: block;
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  margin: 8px 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.vote-comment {
+  display: block;
+  white-space: pre-wrap;
+  font-style: italic;
+}
+
 .vote-files ol {
   margin: 4px 0 8px;
   padding-left: 20px;

@@ -44,6 +44,7 @@ const BLOCKED_FILE_TYPES = /\.(exe|bat|cmd|com|scr|js|jse|vbs|vbe|msi|jar|ps1|sh
 // vote closes, and moved into the committee documents folder so members can
 // open it. Created on first use.
 const SUMMARY_HEADERS = ['Date', 'Proposed by', 'Proposal', 'Result', 'Link'];
+const MAX_COMMENT_LENGTH = 1000;
 const MIN_OPEN_MINUTES = 5;
 const MAX_OPEN_DAYS = 90;
 
@@ -305,6 +306,15 @@ function withLock(fn) {
 
 // --- State, replayed from the ledger ---
 
+// A vote entry's data is the bare choice ("FOR") when there is no comment, which
+// is how every vote before comments existed is stored, or a JSON object
+// {"choice":"FOR","comment":"..."} when the voter added one.
+function parseVoteData(data) {
+  if (String(data).charAt(0) !== '{') return { choice: data, comment: '' };
+  const d = JSON.parse(data);
+  return { choice: d.choice, comment: d.comment || '' };
+}
+
 function buildState(entries) {
   const proposals = {};
   const order = [];
@@ -329,7 +339,8 @@ function buildState(entries) {
     } else if (e.type === 'VOTE') {
       const p = proposals[e.proposalId];
       if (p && p.status === 'open' && canVote(e.actor)) {
-        p.votes[e.actor] = { voter: e.actor, choice: e.data, timestamp: e.timestamp, seq: e.seq, hash: e.hash };
+        const v = parseVoteData(e.data);
+        p.votes[e.actor] = { voter: e.actor, choice: v.choice, comment: v.comment, timestamp: e.timestamp, seq: e.seq, hash: e.hash };
       }
     } else if (e.type === 'ATTACH') {
       const p = proposals[e.proposalId];
@@ -361,7 +372,7 @@ function tally(proposal) {
 function publicProposal(p, me, names) {
   const votes = Object.keys(p.votes).map(function (k) {
     const v = p.votes[k];
-    return { voter: v.voter, voterName: nameOf(v.voter, names), choice: v.choice, timestamp: v.timestamp, seq: v.seq, hash: v.hash };
+    return { voter: v.voter, voterName: nameOf(v.voter, names), choice: v.choice, comment: v.comment, timestamp: v.timestamp, seq: v.seq, hash: v.hash };
   });
   return {
     id: p.id,
@@ -390,6 +401,7 @@ function publicProposal(p, me, names) {
     votes: votes,
     tally: tally(p),
     myVote: p.votes[me] ? p.votes[me].choice : null,
+    myComment: p.votes[me] ? p.votes[me].comment : '',
   };
 }
 
@@ -545,16 +557,20 @@ function castVote(who, req) {
   if (!canVote(who.email)) return { error: 'cannot_vote' }; // also checked in handle(); kept here so no caller can skip it
   const choice = String(req.choice || '').toUpperCase();
   if (CHOICES.indexOf(choice) === -1) return { error: 'bad_choice' };
+  const comment = String(req.comment || '').trim();
+  if (comment.length > MAX_COMMENT_LENGTH) return { error: 'bad_comment' };
+  const data = comment ? JSON.stringify({ choice: choice, comment: comment }) : choice;
 
   const result = withLock(function () {
     const state = buildState(readLedger());
     const p = state.proposals[req.proposalId];
     if (!p) return { error: 'no_such_proposal' };
     if (p.status !== 'open' || Date.now() >= new Date(p.closesAt).getTime()) return { error: 'voting_closed' };
-    if (p.votes[who.email] && p.votes[who.email].choice === choice) return { ok: true, unchanged: true };
+    const prev = p.votes[who.email];
+    if (prev && prev.choice === choice && prev.comment === comment) return { ok: true, unchanged: true };
     const changed = !!p.votes[who.email]; // they had already voted, so this is a change
-    const entry = appendEntry('VOTE', p.id, who.email, evidenceFor(who), choice);
-    return { ok: true, entry: entry, title: p.title, changed: changed };
+    const entry = appendEntry('VOTE', p.id, who.email, evidenceFor(who), data);
+    return { ok: true, entry: entry, title: p.title, changed: changed, choice: choice, comment: comment };
   });
   if (!result.entry) return result;
 
@@ -562,7 +578,8 @@ function castVote(who, req) {
   safeMail([who.email], 'Your vote receipt: ' + result.title,
     (result.changed ? 'Your vote has been recorded with your change.' : 'Your vote has been recorded.') + '\n\n' +
     'Proposal: ' + result.title + ' (' + e.proposalId + ')\n' +
-    'Your vote: ' + e.data + '\n' +
+    'Your vote: ' + result.choice + '\n' +
+    (result.comment ? 'Your comment: ' + result.comment + '\n' : '') +
     'Recorded: ' + sydney(e.timestamp) + '\n' +
     'Ledger entry: ' + e.seq + '\n' +
     '\nNote: All results are saved and stored online in a ledger using a chain hash.\n' +
@@ -628,7 +645,7 @@ function mailClosed(closeEntry) {
   const p = state.proposals[closeEntry.proposalId];
   const names = readNames();
   const voters = Object.keys(p.votes).map(function (k) {
-    return { name: nameOf(p.votes[k].voter, names), choice: p.votes[k].choice };
+    return { name: nameOf(p.votes[k].voter, names), choice: p.votes[k].choice, comment: p.votes[k].comment };
   });
   const mail = closedEmail({
     id: p.id,
@@ -669,7 +686,7 @@ function closedEmail(c) {
     'Result: ' + c.outcome + '\n' +
     'For: ' + t.FOR + '   Against: ' + t.AGAINST + '   Abstain: ' + t.ABSTAIN + '\n\n' +
     'How each member voted:\n' +
-    (c.voters.length ? c.voters.map(function (v) { return '* ' + v.name + ': ' + v.choice + '\n'; }).join('') : '* (no votes)\n') +
+    (c.voters.length ? c.voters.map(function (v) { return '* ' + v.name + ': ' + v.choice + (v.comment ? ' (comment: ' + v.comment + ')' : '') + '\n'; }).join('') : '* (no votes)\n') +
     '\n' + perm + '\n\n' +
     'View the ledger in the voting portal: ' + PORTAL_URL + '\n\n' +
     note + '\n' + hashLine + c.hash + '\n' + proof + '\n';
@@ -687,7 +704,7 @@ function closedEmail(c) {
     'For: ' + t.FOR + ' &nbsp; Against: ' + t.AGAINST + ' &nbsp; Abstain: ' + t.ABSTAIN + '</p>' +
     '<p>How each member voted:</p>' +
     '<ul>' + (c.voters.length
-      ? c.voters.map(function (v) { return '<li>' + esc(v.name) + ': ' + esc(v.choice) + '</li>'; }).join('')
+      ? c.voters.map(function (v) { return '<li>' + esc(v.name) + ': ' + esc(v.choice) + (v.comment ? '<br><span style="white-space:pre-wrap;color:#555">Comment: ' + esc(v.comment) + '</span>' : '') + '</li>'; }).join('')
       : '<li>(no votes)</li>') + '</ul>' +
     '<p>' + esc(perm) + '</p>' +
     '<p><a href="' + PORTAL_URL + '" style="color:#1a0dab;text-decoration:underline">View the ledger in the voting portal</a>.</p>' +
