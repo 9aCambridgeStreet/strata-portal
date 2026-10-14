@@ -362,8 +362,7 @@ function copyFileAction(fileId) {
     if (siblingOwner && siblingOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
       return page('<p>A secretary-owned copy of “' + originalName + '” already exists, someone ' +
         'else already actioned this.</p>' +
-        '<p><a href="' + sibling.getUrl() + '" target="_blank">Open the existing copy</a></p>' +
-        '<p><a href="' + parentFolder.getUrl() + '" target="_blank">Open the folder in Google Drive</a></p>' +
+        '<p><a href="' + parentFolder.getUrl() + '" target="_blank">View the documents in Google Drive</a></p>' +
         '<p>Nothing more to do here - if this original hasn’t been swapped out and trashed yet, ' +
         'finish that manually.</p>');
     }
@@ -373,13 +372,11 @@ function copyFileAction(fileId) {
 
   let html =
     '<p>Made a secretary-owned copy of “' + originalName + '”.</p>' +
-    '<p><a href="' + copy.getUrl() + '" target="_blank">Open the new copy</a></p>' +
-    '<p><a href="' + parentFolder.getUrl() + '" target="_blank">Open the folder in Google Drive</a> ' +
-    'to see every copy of this document.</p>';
+    '<p><a href="' + parentFolder.getUrl() + '" target="_blank">View the documents in Google Drive</a> ' +
+    'to see every copy and who owns each one.</p>';
 
-  // Shown whenever the original is left in place, so the one to delete is a click away.
-  const originalLink = '<p><a href="' + file.getUrl() + '" target="_blank">Open the original in Google Drive</a>' +
-    ' (the one owned by ' + ownerEmail + ', which is the one to delete).</p>';
+  // Shown whenever the original is left in place; the folder link above is where to delete it.
+  const originalLink = '<p>The one to delete is the copy owned by ' + ownerEmail + '.</p>';
 
   // Check the live Portal Menu Sheet before trashing anything - trashing a
   // file that's currently a nav tab would break that tab's embed. Fail
