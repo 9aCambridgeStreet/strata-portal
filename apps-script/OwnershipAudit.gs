@@ -363,6 +363,7 @@ function copyFileAction(fileId) {
       return page('<p>A secretary-owned copy of “' + originalName + '” already exists, someone ' +
         'else already actioned this.</p>' +
         '<p><a href="' + sibling.getUrl() + '" target="_blank">Open the existing copy</a></p>' +
+        '<p><a href="' + parentFolder.getUrl() + '" target="_blank">Open the folder in Google Drive</a></p>' +
         '<p>Nothing more to do here - if this original hasn’t been swapped out and trashed yet, ' +
         'finish that manually.</p>');
     }
@@ -372,7 +373,13 @@ function copyFileAction(fileId) {
 
   let html =
     '<p>Made a secretary-owned copy of “' + originalName + '”.</p>' +
-    '<p><a href="' + copy.getUrl() + '" target="_blank">Open the new copy</a></p>';
+    '<p><a href="' + copy.getUrl() + '" target="_blank">Open the new copy</a></p>' +
+    '<p><a href="' + parentFolder.getUrl() + '" target="_blank">Open the folder in Google Drive</a> ' +
+    'to see every copy of this document.</p>';
+
+  // Shown whenever the original is left in place, so the one to delete is a click away.
+  const originalLink = '<p><a href="' + file.getUrl() + '" target="_blank">Open the original in Google Drive</a>' +
+    ' (the one owned by ' + ownerEmail + ', which is the one to delete).</p>';
 
   // Check the live Portal Menu Sheet before trashing anything - trashing a
   // file that's currently a nav tab would break that tab's embed. Fail
@@ -384,13 +391,13 @@ function copyFileAction(fileId) {
   if (!menu.ok) {
     html += '<p><strong>Could not check the Portal Menu Sheet just now</strong>, so the original ' +
       'has been left alone rather than risk trashing something still linked from the nav. Check ' +
-      'by hand, then trash it yourself in Drive once you’re sure it’s safe to.</p>';
+      'by hand, then trash it yourself in Drive once you’re sure it’s safe to.</p>' + originalLink;
   } else if (menuName) {
     html += '<p><strong>Action needed:</strong> this file is linked from the main menu as “' +
       menuName + '”, so the original has been left alone rather than trashed. Update that ' +
       'row’s Link in the Portal Menu Sheet to the new copy’s URL below, then trash the ' +
       'original yourself once that change is live:</p>' +
-      '<p><code>' + copy.getUrl() + '</code></p>';
+      '<p><code>' + copy.getUrl() + '</code></p>' + originalLink;
   } else {
     // DriveApp.setTrashed() has a known, more conservative internal check
     // than the real Drive API for files the caller doesn't own - confirmed
@@ -414,7 +421,7 @@ function copyFileAction(fileId) {
       }
       html += '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail +
         '): ' + trashError + ' (secretary account access: ' + secretaryAccess + '). Move it to ' +
-        'Trash yourself in Drive so there aren’t two live copies.</p>';
+        'Trash yourself in Drive so there aren’t two live copies.</p>' + originalLink;
     } else {
       html += '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, ' +
         'so only the new copy is visible in the folder now. It’s recoverable from Drive’s Trash ' +
