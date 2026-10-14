@@ -31,6 +31,19 @@ const LEDGER_HEADERS = ['seq', 'timestamp', 'type', 'proposalId', 'actor', 'evid
 // already in the ledger under these accounts stay there, but are ignored in
 // every tally and voter list (see buildState), so the ledger chain stays valid.
 const NON_VOTING_ACCOUNTS = ['secretary.9a.cambridge.st@gmail.com'];
+// Proposal attachments. Files live in a "Proposal attachments" subfolder of the
+// committee documents folder (created on first use), so every member can open
+// them. Files added when the proposal is created are emailed with the vote
+// notice. Files any member adds afterwards are only listed in the portal.
+const ATTACHMENTS_FOLDER_NAME = 'Proposal attachments';
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 5;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // Gmail caps a whole message at 25 MB
+const BLOCKED_FILE_TYPES = /\.(exe|bat|cmd|com|scr|js|jse|vbs|vbe|msi|jar|ps1|sh|dll|lnk|reg|app|apk)$/i;
+// Summary of past votes: a second Sheet, rebuilt from the ledger each time a
+// vote closes, and moved into the committee documents folder so members can
+// open it. Created on first use.
+const SUMMARY_HEADERS = ['Date', 'Proposed by', 'Proposal', 'Result', 'Link'];
 const MIN_OPEN_MINUTES = 5;
 const MAX_OPEN_DAYS = 90;
 
@@ -64,7 +77,7 @@ function handle(req) {
     return mintSession(who);
   }
 
-  const isWrite = req.action === 'create' || req.action === 'vote' || req.action === 'close';
+  const isWrite = req.action === 'create' || req.action === 'vote' || req.action === 'close' || req.action === 'attach';
   if (isWrite && !canVote(who.email)) return { error: 'cannot_vote' };
   if (isWrite && who.via === 'google' && who.ageSeconds > FRESH_TOKEN_SECONDS) return { error: 'token_stale' };
 
@@ -76,6 +89,7 @@ function handle(req) {
     case 'create': return createProposal(who, req);
     case 'vote': return castVote(who, req);
     case 'close': return closeProposal(who, req);
+    case 'attach': return attachFiles(who, req);
     default: return { error: 'unknown_action' };
   }
 }
@@ -302,6 +316,9 @@ function buildState(entries) {
         title: d.title,
         description: d.description,
         docLink: d.docLink,
+        files: (d.files || []).map(function (f) {
+          return Object.assign({}, f, { by: e.actor, at: e.timestamp, initial: true });
+        }),
         closesAt: d.closesAt,
         createdBy: e.actor,
         createdAt: e.timestamp,
@@ -313,6 +330,11 @@ function buildState(entries) {
       const p = proposals[e.proposalId];
       if (p && p.status === 'open' && canVote(e.actor)) {
         p.votes[e.actor] = { voter: e.actor, choice: e.data, timestamp: e.timestamp, seq: e.seq, hash: e.hash };
+      }
+    } else if (e.type === 'ATTACH') {
+      const p = proposals[e.proposalId];
+      if (p && p.status === 'open') {
+        p.files.push(Object.assign(JSON.parse(e.data), { by: e.actor, at: e.timestamp, initial: false }));
       }
     } else if (e.type === 'CLOSE') {
       const p = proposals[e.proposalId];
@@ -346,6 +368,17 @@ function publicProposal(p, me, names) {
     title: p.title,
     description: p.description,
     docLink: p.docLink,
+    files: p.files.map(function (f) {
+      return {
+        id: f.id,
+        name: f.name,
+        size: f.size,
+        url: 'https://drive.google.com/file/d/' + f.id + '/view',
+        byName: nameOf(f.by, names),
+        at: f.at,
+        emailed: !!f.initial,
+      };
+    }),
     createdBy: p.createdBy,
     createdByName: nameOf(p.createdBy, names),
     createdAt: p.createdAt,
@@ -369,6 +402,7 @@ function listProposals(who) {
     me: who.email,
     meName: nameOf(who.email, names),
     canVote: canVote(who.email),
+    summaryUrl: summaryUrl(),
     proposals: state.order.slice().reverse().map(function (id) {
       return publicProposal(state.proposals[id], who.email, names);
     }),
@@ -401,6 +435,10 @@ function createProposal(who, req) {
   if (closes.getTime() < now + MIN_OPEN_MINUTES * 60000) return { error: 'close_date_too_soon' };
   if (closes.getTime() > now + MAX_OPEN_DAYS * 86400000) return { error: 'close_date_too_far' };
 
+  const prepared = prepareUploads(req.files);
+  if (prepared.error) return { error: prepared.error };
+  const files = storeUploads(prepared.blobs);
+
   const entry = withLock(function () {
     const state = buildState(readLedger());
     const id = 'P' + (state.order.length + 1);
@@ -408,6 +446,7 @@ function createProposal(who, req) {
       title: title,
       description: description,
       docLink: docLink,
+      files: files,
       closesAt: closes.toISOString(),
     }));
   });
@@ -417,14 +456,87 @@ function createProposal(who, req) {
     title: title,
     description: description,
     docLink: docLink,
+    fileNames: files.map(function (f) { return f.name; }),
     closesAt: closes.toISOString(),
     createdByName: nameOf(who.email),
   });
   // Only the people the folder is shared with, not the owner mailbox or the
   // Slack export service account (same filter that decides who can vote).
-  safeMail(memberEmails().filter(canVote), mail.subject, mail.body, mail.htmlBody);
+  safeMail(memberEmails().filter(canVote), mail.subject, mail.body, mail.htmlBody, prepared.blobs);
 
   return { ok: true, id: entry.proposalId };
+}
+
+// Validates and decodes uploaded files ({ name, mime, data: base64 }) before
+// anything is saved. Returns { blobs } or { error }.
+function prepareUploads(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  if (list.length > MAX_UPLOAD_FILES) return { error: 'too_many_files' };
+  const blobs = [];
+  let total = 0;
+  for (let i = 0; i < list.length; i++) {
+    const name = String(list[i].name || '').replace(/[\\\/:*?"<>|\r\n]/g, '_').trim().slice(0, 150);
+    if (!name || !list[i].data) return { error: 'bad_file' };
+    if (BLOCKED_FILE_TYPES.test(name)) return { error: 'blocked_file_type' };
+    let bytes;
+    try {
+      bytes = Utilities.base64Decode(String(list[i].data));
+    } catch (err) {
+      return { error: 'bad_file' };
+    }
+    if (!bytes.length) return { error: 'bad_file' };
+    if (bytes.length > MAX_FILE_BYTES) return { error: 'file_too_large' };
+    total += bytes.length;
+    if (total > MAX_UPLOAD_BYTES) return { error: 'upload_too_large' };
+    blobs.push(Utilities.newBlob(bytes, String(list[i].mime || 'application/octet-stream'), name));
+  }
+  return { blobs: blobs };
+}
+
+function attachmentsFolder() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('attachmentsFolderId');
+  if (id) return DriveApp.getFolderById(id);
+  return withLock(function () {
+    const again = props.getProperty('attachmentsFolderId');
+    if (again) return DriveApp.getFolderById(again);
+    const folder = DriveApp.getFolderById(FOLDER_ID).createFolder(ATTACHMENTS_FOLDER_NAME);
+    props.setProperty('attachmentsFolderId', folder.getId());
+    return folder;
+  });
+}
+
+function storeUploads(blobs) {
+  if (!blobs.length) return [];
+  const folder = attachmentsFolder();
+  return blobs.map(function (blob) {
+    const file = folder.createFile(blob);
+    return { id: file.getId(), name: blob.getName(), size: file.getSize(), mime: blob.getContentType() };
+  });
+}
+
+// Any member can add files to an open proposal. These are listed in the portal
+// only; they are never emailed.
+function attachFiles(who, req) {
+  const prepared = prepareUploads(req.files);
+  if (prepared.error) return { error: prepared.error };
+  if (!prepared.blobs.length) return { error: 'no_files' };
+
+  const isOpen = function (p) {
+    return p && p.status === 'open' && Date.now() < new Date(p.closesAt).getTime();
+  };
+  const before = buildState(readLedger()).proposals[req.proposalId];
+  if (!before) return { error: 'no_such_proposal' };
+  if (!isOpen(before)) return { error: 'voting_closed' };
+
+  const files = storeUploads(prepared.blobs);
+  return withLock(function () {
+    if (!isOpen(buildState(readLedger()).proposals[req.proposalId])) return { error: 'voting_closed' };
+    files.forEach(function (f) {
+      appendEntry('ATTACH', req.proposalId, who.email, evidenceFor(who), JSON.stringify(f));
+    });
+    return { ok: true };
+  });
 }
 
 function castVote(who, req) {
@@ -519,15 +631,24 @@ function mailClosed(closeEntry) {
   const mail = closedEmail({
     id: p.id,
     title: p.title,
+    description: p.description,
+    docLink: p.docLink,
+    createdByName: nameOf(p.createdBy, names),
     outcome: tally(p).outcome,
     tally: tally(p),
     voters: voters,
     hash: closeEntry.hash,
   });
   safeMail(memberEmails().filter(canVote), mail.subject, mail.body, mail.htmlBody);
+  try {
+    rebuildSummary();
+  } catch (err) {
+    console.error('summary failed: ' + err); // the summary is a convenience, never undo a close
+  }
 }
 
-// The "vote closed" result sent to every member: the outcome, the count, how
+// The "vote closed" result sent to every member: the proposal (title, text and
+// who proposed it), the outcome, the count, how
 // each member voted, the final ledger hash, and a note that the result is kept
 // permanently online. Returns plain text plus an HTML version.
 function closedEmail(c) {
@@ -539,7 +660,10 @@ function closedEmail(c) {
     'If the chain hash changes, a vote has been changed. Keep this email as your record of the vote.';
 
   const text =
-    'Voting has closed on the proposal: ' + c.title + '\n\n' +
+    'Voting has closed on the proposal: ' + c.title + '\n' +
+    'Proposed by: ' + c.createdByName + '\n\n' +
+    (c.description ? 'Proposal:\n' + c.description + '\n\n' : '') +
+    (c.docLink ? 'Supporting document: ' + c.docLink + '\n\n' : '') +
     'Result: ' + c.outcome + '\n' +
     'For: ' + t.FOR + '   Against: ' + t.AGAINST + '   Abstain: ' + t.ABSTAIN + '\n\n' +
     'How each member voted:\n' +
@@ -553,7 +677,10 @@ function closedEmail(c) {
   };
   const html =
     '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px">' +
-    '<p>Voting has closed on the proposal: <strong>' + esc(c.title) + '</strong></p>' +
+    '<p>Voting has closed on the proposal: <strong>' + esc(c.title) + '</strong><br>' +
+    'Proposed by: ' + esc(c.createdByName) + '</p>' +
+    (c.description ? '<p style="white-space:pre-wrap">' + esc(c.description) + '</p>' : '') +
+    (c.docLink ? '<p>Supporting document: <a href="' + esc(c.docLink) + '" style="color:#1a0dab">' + esc(c.docLink) + '</a></p>' : '') +
     '<p><strong>Result:</strong> ' + esc(c.outcome) + '<br>' +
     'For: ' + t.FOR + ' &nbsp; Against: ' + t.AGAINST + ' &nbsp; Abstain: ' + t.ABSTAIN + '</p>' +
     '<p>How each member voted:</p>' +
@@ -568,6 +695,75 @@ function closedEmail(c) {
   return { subject: 'Vote closed: ' + c.title + ' (' + c.outcome + ')', body: text, htmlBody: html };
 }
 
+// --- Summary of past votes ---
+
+function resultText(t) {
+  const word = t.outcome === 'PASSED' ? 'Passed' : (t.outcome === 'NOT PASSED' ? 'Not passed' : 'Tied (not passed)');
+  return word + ' ' + t.FOR + '/' + t.AGAINST + (t.ABSTAIN ? ' (' + t.ABSTAIN + ' abstained)' : '');
+}
+
+function summaryUrl() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('summarySheetId')) {
+    try {
+      rebuildSummary(); // first use: creates the Sheet and backfills closed votes
+    } catch (err) {
+      console.error('summary failed: ' + err);
+      return null;
+    }
+  }
+  const id = props.getProperty('summarySheetId');
+  return id ? 'https://docs.google.com/spreadsheets/d/' + id + '/edit' : null;
+}
+
+function summarySpreadsheet() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('summarySheetId');
+  if (id) return SpreadsheetApp.openById(id);
+  const ss = SpreadsheetApp.create('Strata Votes (Summary)');
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(FOLDER_ID)); // takes the folder's sharing
+  props.setProperty('summarySheetId', ss.getId());
+  return ss;
+}
+
+// Rewrites the whole summary from the ledger (newest vote first), so it is
+// always correct and safe to run again. Also runnable by hand from the editor.
+function rebuildSummary() {
+  withLock(function () {
+    const state = buildState(readLedger());
+    const names = readNames();
+    const closed = state.order.map(function (id) { return state.proposals[id]; })
+      .filter(function (p) { return p.status === 'closed'; })
+      .sort(function (a, b) { return new Date(b.closedAt) - new Date(a.closedAt); });
+    // A title starting with = + - @ would run as a formula, so it is quoted.
+    const plain = function (v) { return String(v).replace(/^([=+\-@])/, "'$1"); };
+    const rows = closed.map(function (p) {
+      return [
+        Utilities.formatDate(new Date(p.closedAt), 'Australia/Sydney', 'd-MMM-yy'),
+        plain(nameOf(p.createdBy, names)),
+        plain(p.title),
+        resultText(tally(p)),
+        '=HYPERLINK("' + PORTAL_URL + '","View ' + p.id + ' in voting system")',
+      ];
+    });
+
+    const sheet = summarySpreadsheet().getSheets()[0];
+    sheet.setName('Past votes');
+    sheet.clear();
+    sheet.getRange(1, 1, 1, SUMMARY_HEADERS.length).setValues([SUMMARY_HEADERS])
+      .setFontWeight('bold').setFontColor('#ffffff').setBackground('#14607f');
+    if (rows.length) {
+      sheet.getRange(2, 1, rows.length, SUMMARY_HEADERS.length).setValues(rows).setBackground('#d6eaf3');
+    }
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, 1, 90);
+    sheet.setColumnWidths(2, 1, 160);
+    sheet.setColumnWidths(3, 1, 360);
+    sheet.setColumnWidths(4, 1, 150);
+    sheet.setColumnWidths(5, 1, 230);
+  });
+}
+
 // --- Helpers ---
 
 // The "new proposal" announcement sent to every member: the proposal, the
@@ -576,6 +772,7 @@ function closedEmail(c) {
 function proposalEmail(p) {
   const closes = sydney(p.closesAt);
   const choices = CHOICES.map(function (c) { return c.charAt(0) + c.slice(1).toLowerCase(); });
+  const fileNames = p.fileNames || [];
   const signIn = 'To vote you may be asked to sign in to the Strata Committee Portal with your Google account. ' +
     'You can change your vote any time until voting closes.';
 
@@ -584,6 +781,7 @@ function proposalEmail(p) {
     'Proposal: ' + p.title + '\n' +
     (p.description ? p.description + '\n' : '') +
     (p.docLink ? 'Supporting document: ' + p.docLink + '\n' : '') +
+    (fileNames.length ? 'Attached: ' + fileNames.join(', ') + '\n' : '') +
     '\nYour voting options are:\n' +
     choices.map(function (c) { return '* ' + c + '\n'; }).join('') +
     '\nVoting closes: ' + closes + '\n\n' +
@@ -599,6 +797,7 @@ function proposalEmail(p) {
     '<p><strong>Proposal:</strong> ' + esc(p.title) + '</p>' +
     (p.description ? '<p style="white-space:pre-wrap">' + esc(p.description) + '</p>' : '') +
     (p.docLink ? '<p>Supporting document: <a href="' + esc(p.docLink) + '" style="color:#1a0dab">' + esc(p.docLink) + '</a></p>' : '') +
+    (fileNames.length ? '<p>Attached: ' + fileNames.map(esc).join(', ') + '</p>' : '') +
     '<p>Your voting options are:</p>' +
     '<ul>' + choices.map(function (c) { return '<li>' + c + '</li>'; }).join('') + '</ul>' +
     '<p><strong>Voting closes:</strong> ' + esc(closes) + '</p>' +
@@ -611,12 +810,13 @@ function proposalEmail(p) {
   return { subject: 'New committee proposal: ' + p.title, body: text, htmlBody: html };
 }
 
-function safeMail(recipients, subject, body, htmlBody) {
+function safeMail(recipients, subject, body, htmlBody, attachments) {
   try {
     const unique = recipients.filter(function (r, i) { return r && recipients.indexOf(r) === i; });
     if (!unique.length) return;
     const msg = { to: unique.join(','), subject: subject, body: body };
     if (htmlBody) msg.htmlBody = htmlBody;
+    if (attachments && attachments.length) msg.attachments = attachments;
     MailApp.sendEmail(msg);
   } catch (err) {
     console.error('mail failed: ' + err); // never let an email problem undo a recorded vote
@@ -691,6 +891,9 @@ function testClosedEmail() {
   const mail = closedEmail({
     id: 'TEST',
     title: 'Replace the lobby carpet',
+    description: 'Three quotes have been received. The recommended quote is $8,400 including GST.',
+    docLink: '',
+    createdByName: 'Test Sender',
     outcome: 'PASSED',
     tally: { FOR: 3, AGAINST: 1, ABSTAIN: 0 },
     voters: [

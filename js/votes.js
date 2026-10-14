@@ -112,12 +112,43 @@ const VOTES_ERRORS = {
   bad_close_date: 'Choose a valid closing date.',
   close_date_too_soon: 'The closing time must be at least 5 minutes from now.',
   close_date_too_far: 'The closing time must be within 90 days.',
+  bad_file: 'One of the files could not be read. Choose it again.',
+  blocked_file_type: 'That type of file cannot be attached (programs and scripts are not allowed).',
+  file_too_large: 'Each file must be 10 MB or smaller.',
+  too_many_files: 'Attach up to 5 files at a time.',
+  upload_too_large: 'The files together must be 20 MB or smaller.',
+  no_files: 'Choose at least one file to attach.',
   not_creator: 'Only the member who created a proposal can close it early.',
   server_error: 'Something went wrong on the server. Try again shortly.',
 };
 
 function votesErrorText(code) {
   return VOTES_ERRORS[code] || 'Something went wrong (' + code + ').';
+}
+
+const MAX_UPLOAD_FILES = 5;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+function fmtSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(n / 1024)) + ' KB';
+}
+
+// Checks the size limits in the browser first so a too-big choice fails fast,
+// then reads each file as base64 for the voting script.
+async function readUploads(fileList) {
+  const files = Array.from(fileList || []);
+  if (files.length > MAX_UPLOAD_FILES) throw new Error('too_many_files');
+  if (files.some((f) => f.size > MAX_FILE_BYTES)) throw new Error('file_too_large');
+  if (files.reduce((sum, f) => sum + f.size, 0) > MAX_UPLOAD_BYTES) throw new Error('upload_too_large');
+  return Promise.all(files.map((f) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: f.name, mime: f.type, data: String(reader.result).split(',')[1] || '' });
+    reader.onerror = () => reject(new Error('bad_file'));
+    reader.readAsDataURL(f);
+  })));
 }
 
 function votesOpen(panel) {
@@ -204,6 +235,7 @@ function votesRender() {
 
   const canVote = data.canVote !== false;
   const toolbar = el('div', { class: 'votes-toolbar' }, [
+    data.summaryUrl && el('a', { class: 'votes-btn', href: data.summaryUrl, target: '_blank', rel: 'noopener', text: 'Summary of past votes ↗' }),
     canVote && el('button', { type: 'button', class: 'votes-btn primary', text: votesState.showForm ? 'Cancel' : 'New proposal', onclick: () => { votesState.showForm = !votesState.showForm; votesRender(); } }),
     el('button', { type: 'button', class: 'votes-btn', text: 'Refresh', onclick: votesRefresh }),
     el('button', { type: 'button', class: 'votes-btn', text: votesState.showAudit ? 'Hide audit ledger' : 'Audit ledger', onclick: () => { votesState.showAudit = !votesState.showAudit; votesRender(); } }),
@@ -232,6 +264,7 @@ function proposalCard(p) {
   card.append(el('p', { class: 'vote-meta', text: `${p.id} · proposed by ${p.createdByName} · ${isOpen ? 'closes ' + fmtDate(p.closesAt) : 'closed ' + fmtDate(p.closedAt)}` }));
   if (p.description) card.append(el('p', { class: 'vote-desc', text: p.description }));
   if (p.docLink) card.append(el('p', {}, [el('a', { href: p.docLink, target: '_blank', rel: 'noopener', text: 'Read the supporting document ↗' })]));
+  card.append(attachmentsBlock(p, isOpen));
 
   const counts = el('p', { class: 'vote-counts', text: `For ${t.FOR} · Against ${t.AGAINST} · Abstain ${t.ABSTAIN}` });
   card.append(counts);
@@ -268,6 +301,38 @@ function proposalCard(p) {
   ]));
   if (!isOpen) card.append(el('p', { class: 'vote-final', text: `Final ledger hash: ${p.closeHash}` }));
   return card;
+}
+
+function attachmentsBlock(p, isOpen) {
+  const block = el('div', { class: 'vote-files' });
+  if (p.files.length) {
+    block.append(el('p', { class: 'vote-files-title', text: 'Attached files' }));
+    const list = el('ul', {});
+    p.files.forEach((f) => {
+      list.append(el('li', {}, [
+        el('a', { href: f.url, target: '_blank', rel: 'noopener', text: `${f.name} ↗` }),
+        el('span', { class: 'vote-hint', text: ` ${fmtSize(f.size)} · ${f.emailed ? 'sent with the vote email' : `added by ${f.byName}, not emailed`}` }),
+      ]));
+    });
+    block.append(list);
+  }
+  if (isOpen && votesState.data.canVote !== false) {
+    const input = el('input', { type: 'file', multiple: 'multiple', class: 'vote-file-input' });
+    input.addEventListener('change', async () => {
+      if (!input.files.length) return;
+      if (votesState.busy) return;
+      await votesAction(async () => {
+        try {
+          return await votesApi('attach', { proposalId: p.id, files: await readUploads(input.files) });
+        } catch (err) {
+          return { error: err.message };
+        }
+      }, 'Files attached. They are visible in the portal and have not been emailed.');
+    });
+    block.append(el('button', { type: 'button', class: 'votes-btn small', text: 'Attach a file', onclick: () => input.click() }));
+    block.append(input);
+  }
+  return block;
 }
 
 async function castVote(p, choice) {
@@ -316,6 +381,7 @@ function votesForm() {
   const title = el('input', { type: 'text', maxlength: '200', required: 'required' });
   const description = el('textarea', { rows: '5', maxlength: '5000' });
   const docLink = el('input', { type: 'url', placeholder: 'https://docs.google.com/…' });
+  const files = el('input', { type: 'file', multiple: 'multiple' });
   const closes = el('input', { type: 'datetime-local', value: defaultClose.toISOString().slice(0, 16) });
 
   const form = el('form', { class: 'votes-form' }, [
@@ -323,6 +389,7 @@ function votesForm() {
     field('Title', title),
     field('What are we voting on?', description),
     field('Supporting document (optional)', docLink),
+    field('Attach files (optional, emailed to the committee, up to 5 files)', files),
     field('Voting closes (Sydney time)', closes),
     el('p', { class: 'vote-hint', text: 'Everyone on the committee is emailed. Voting is by named ballot, simple majority of those voting, abstentions not counted.' }),
     el('button', { type: 'submit', class: 'votes-btn primary', text: 'Put to a vote' }),
@@ -335,10 +402,11 @@ function votesForm() {
       try {
         return await votesApi('create', {
           title: title.value, description: description.value, docLink: docLink.value,
+          files: await readUploads(files.files),
           closesAt: new Date(closes.value).toISOString(),
         });
       } catch (err) {
-        return { error: 'server_error' };
+        return { error: /^[a-z_]+$/.test(err.message) ? err.message : 'server_error' };
       } finally {
         votesState.busy = false;
       }
