@@ -118,6 +118,7 @@ const VOTES_ERRORS = {
   too_many_files: 'Attach up to 5 files at a time.',
   upload_too_large: 'The files together must be 20 MB or smaller.',
   no_files: 'Choose at least one file to attach.',
+  bad_comment: 'The comment is too long (1000 characters at most).',
   not_creator: 'Only the member who created a proposal can close it early.',
   server_error: 'Something went wrong on the server. Try again shortly.',
 };
@@ -271,13 +272,16 @@ function proposalCard(p) {
   if (!isOpen) card.append(el('p', { class: 'vote-result ' + (t.outcome === 'PASSED' ? 'passed' : 'failed'), text: t.outcome }));
 
   if (isOpen && votesState.data.canVote !== false) {
+    const comment = el('textarea', { class: 'vote-comment-input', rows: '2', maxlength: '1000', placeholder: 'Add a comment with your vote (optional)' });
+    comment.value = p.myComment || '';
+    card.append(comment);
     const row = el('div', { class: 'vote-choices' });
     Object.keys(CHOICE_LABELS).forEach((choice) => {
       row.append(el('button', {
         type: 'button',
         class: 'votes-btn choice choice-' + choice.toLowerCase() + (p.myVote === choice ? ' is-mine' : ''),
         text: CHOICE_LABELS[choice],
-        onclick: () => castVote(p, choice),
+        onclick: () => castVote(p, choice, comment.value),
       }));
     });
     card.append(row);
@@ -293,6 +297,7 @@ function proposalCard(p) {
       el('span', { class: 'voter', text: v.voterName }),
       el('span', { class: 'choice-tag choice-' + v.choice.toLowerCase(), text: CHOICE_LABELS[v.choice] }),
       el('span', { class: 'vote-time', text: `${fmtDate(v.timestamp)} · entry ${v.seq} · ${shortHash(v.hash)}` }),
+      v.comment && el('span', { class: 'vote-comment', text: v.comment }),
     ]));
   });
   card.append(el('details', { class: 'vote-detail' }, [
@@ -335,10 +340,10 @@ function attachmentsBlock(p, isOpen) {
   return block;
 }
 
-async function castVote(p, choice) {
+async function castVote(p, choice, comment) {
   if (votesState.busy) return;
   if (!confirm(`Cast your vote on "${p.title}": ${CHOICE_LABELS[choice]}?\n\nYou can change it until voting closes.`)) return;
-  await votesAction(() => votesApi('vote', { proposalId: p.id, choice }), 'Your vote was recorded. A receipt has been emailed to you.');
+  await votesAction(() => votesApi('vote', { proposalId: p.id, choice, comment }), 'Your vote was recorded. A receipt has been emailed to you.');
 }
 
 async function closeProposal(p) {
