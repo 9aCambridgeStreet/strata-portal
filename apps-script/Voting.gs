@@ -403,7 +403,6 @@ function listProposals(who) {
     meName: nameOf(who.email, names),
     canVote: canVote(who.email),
     summaryUrl: summaryUrl(),
-    docsFolderUrl: docsFolderUrl(),
     proposals: state.order.slice().reverse().map(function (id) {
       return publicProposal(state.proposals[id], who.email, names);
     }),
@@ -507,15 +506,6 @@ function attachmentsFolder() {
     props.setProperty('attachmentsFolderId', folder.getId());
     return folder;
   });
-}
-
-function docsFolderUrl() {
-  try {
-    return attachmentsFolder().getUrl();
-  } catch (err) {
-    console.error('docs folder failed: ' + err);
-    return null;
-  }
 }
 
 function storeUploads(blobs) {
