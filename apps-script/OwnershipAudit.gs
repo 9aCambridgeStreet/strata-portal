@@ -360,18 +360,18 @@ function copyFileAction(fileId) {
     if (sibling.getId() === originalId) continue;
     const siblingOwner = sibling.getOwner();
     if (siblingOwner && siblingOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
-      return page('<p>A secretary-owned copy of “' + originalName + '” already exists, someone ' +
-        'else already actioned this.</p>' +
+      return page('<p>A secretary-owned copy of <strong>' + escapeHtml(originalName) + '</strong> already exists, ' +
+        'someone else already actioned this.</p>' +
         '<p><a href="' + parentFolder.getUrl() + '" target="_blank">View the documents in Google Drive</a></p>' +
-        '<p>Nothing more to do here - if this original hasn’t been swapped out and trashed yet, ' +
-        'finish that manually.</p>');
+        '<p>If the original (owned by ' + escapeHtml(ownerEmail) + ') hasn’t been deleted yet, delete it ' +
+        'from that folder.</p>');
     }
   }
 
   const copy = file.makeCopy(originalName, parentFolder);
 
   let html =
-    '<p>Made a secretary-owned copy of “' + originalName + '”.</p>' +
+    '<p>Made a secretary-owned copy of <strong>' + escapeHtml(originalName) + '</strong>.</p>' +
     '<p><a href="' + parentFolder.getUrl() + '" target="_blank">View the documents in Google Drive</a> ' +
     'to see every copy and who owns each one.</p>';
 
