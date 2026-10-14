@@ -31,11 +31,11 @@ const LEDGER_HEADERS = ['seq', 'timestamp', 'type', 'proposalId', 'actor', 'evid
 // already in the ledger under these accounts stay there, but are ignored in
 // every tally and voter list (see buildState), so the ledger chain stays valid.
 const NON_VOTING_ACCOUNTS = ['secretary.9a.cambridge.st@gmail.com'];
-// Proposal attachments. Files live in a "Proposal attachments" subfolder of the
-// committee documents folder (created on first use), so every member can open
-// them. Files added when the proposal is created are emailed with the vote
+// Proposal attachments. Files live in the shared "Voting Supporting Documents"
+// subfolder of the committee documents folder (an existing one is used, else it
+// is created on first use), so every member can open them. Files added when the proposal is created are emailed with the vote
 // notice. Files any member adds afterwards are only listed in the portal.
-const ATTACHMENTS_FOLDER_NAME = 'Proposal attachments';
+const ATTACHMENTS_FOLDER_NAME = 'Voting Supporting Documents';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 5;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // Gmail caps a whole message at 25 MB
@@ -403,6 +403,7 @@ function listProposals(who) {
     meName: nameOf(who.email, names),
     canVote: canVote(who.email),
     summaryUrl: summaryUrl(),
+    docsFolderUrl: docsFolderUrl(),
     proposals: state.order.slice().reverse().map(function (id) {
       return publicProposal(state.proposals[id], who.email, names);
     }),
@@ -500,10 +501,21 @@ function attachmentsFolder() {
   return withLock(function () {
     const again = props.getProperty('attachmentsFolderId');
     if (again) return DriveApp.getFolderById(again);
-    const folder = DriveApp.getFolderById(FOLDER_ID).createFolder(ATTACHMENTS_FOLDER_NAME);
+    const parent = DriveApp.getFolderById(FOLDER_ID);
+    const existing = parent.getFoldersByName(ATTACHMENTS_FOLDER_NAME);
+    const folder = existing.hasNext() ? existing.next() : parent.createFolder(ATTACHMENTS_FOLDER_NAME);
     props.setProperty('attachmentsFolderId', folder.getId());
     return folder;
   });
+}
+
+function docsFolderUrl() {
+  try {
+    return attachmentsFolder().getUrl();
+  } catch (err) {
+    console.error('docs folder failed: ' + err);
+    return null;
+  }
 }
 
 function storeUploads(blobs) {
