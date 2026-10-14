@@ -307,7 +307,7 @@ function attachmentsBlock(p, isOpen) {
   const block = el('div', { class: 'vote-files' });
   if (p.files.length) {
     block.append(el('p', { class: 'vote-files-title', text: 'Supporting documents' }));
-    const list = el('ul', {});
+    const list = el('ol', {});
     p.files.forEach((f) => {
       list.append(el('li', {}, [
         el('a', { href: f.url, target: '_blank', rel: 'noopener', text: `${f.name} ↗` }),
@@ -315,9 +315,6 @@ function attachmentsBlock(p, isOpen) {
       ]));
     });
     block.append(list);
-    if (votesState.data.docsFolderUrl) {
-      block.append(el('p', {}, [el('a', { href: votesState.data.docsFolderUrl, target: '_blank', rel: 'noopener', text: 'Open the Voting Supporting Documents folder ↗' })]));
-    }
   }
   if (isOpen && votesState.data.canVote !== false) {
     const input = el('input', { type: 'file', multiple: 'multiple', class: 'vote-file-input' });
