@@ -191,11 +191,15 @@ header.portal-header h1 {
   white-space: nowrap;
 }
 
+/* No overflow clipping on the nav, or group dropdowns would be cut off at
+   its bottom edge. flex-wrap is the fallback if the top level ever outgrows
+   one row, rather than scrolling tabs off to the right. */
 nav.portal-nav {
   display: flex;
+  flex-wrap: wrap;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  overflow-x: auto;
+  position: relative;
 }
 
 .nav-item {
@@ -215,6 +219,68 @@ nav.portal-nav {
 
 a.nav-item {
   text-decoration: none;
+}
+
+.nav-item:hover {
+  color: var(--color-primary-dark);
+  background: #f4f8f9;
+}
+
+/* Group dropdowns (Sheet "Group" column) */
+
+.nav-group {
+  position: relative;
+}
+
+.nav-group-toggle {
+  display: block;
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.nav-group-toggle .caret {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.8em;
+  transition: transform 0.15s;
+}
+
+.nav-group.open > .nav-group-toggle .caret {
+  transform: rotate(180deg);
+}
+
+.submenu {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  min-width: 220px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+  z-index: 10;
+  padding: 4px 0;
+}
+
+.nav-group.open > .submenu {
+  display: block;
+}
+
+.submenu .nav-item {
+  display: block;
+  padding: 11px 18px;
+  border-bottom: 0;
+  border-left: 3px solid transparent;
+}
+
+.submenu .nav-item.active {
+  border-left-color: var(--color-primary);
+  background: #eef5f7;
 }
 
 main {
@@ -281,7 +347,7 @@ main {
   nav.portal-nav {
     display: none;
     flex-direction: column;
-    overflow-x: visible;
+    flex-wrap: nowrap;
   }
 
   nav.portal-nav.is-open {
@@ -297,6 +363,26 @@ main {
   .nav-item.active {
     border-bottom-color: var(--color-border);
     border-left-color: var(--color-primary);
+  }
+
+  /* Group dropdowns become an accordion inside the hamburger menu */
+  .submenu {
+    position: static;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #f7fafb;
+  }
+
+  .submenu .nav-item {
+    padding-left: 36px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .submenu .nav-item.active {
+    border-bottom-color: var(--color-border);
   }
 
   .tab-panel {

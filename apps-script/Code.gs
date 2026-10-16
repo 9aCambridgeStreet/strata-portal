@@ -68,7 +68,11 @@ function json(obj) {
 
 // --- Dynamic menu, driven by the "Portal Menu" Sheet ---
 // Matt maintains this sheet directly: one row per nav tab, columns
-// Menu Name | Link | Type | Click Count. Row order = tab order. The `Type`
+// Menu Name | Link | Type | Click Count | Group. Row order = tab order. The
+// optional `Group` column collects rows into a dropdown: every row whose
+// Group is "Freq. Docs" goes under one "Freq. Docs" dropdown, which sits where
+// a row named "Freq. Docs" with a blank Link is placed (or at its first
+// member if there is no such row). The `Type`
 // column is informational only, not load-bearing - the actual embed
 // behaviour is worked out from the shape of the Link URL itself, so a
 // mismatched Type (e.g. a spreadsheet link marked "Doc") still renders
@@ -84,14 +88,22 @@ function getMenu() {
   if (cached) return JSON.parse(cached);
 
   const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
-  const rows = getMenuTableRows(ss);
+  const table = getMenuTableRows(ss);
 
-  const items = rows
+  // Optional "Group" column, found by its header name (not position) so
+  // inserting or reordering columns can't break it. Missing column = every
+  // item has group '' and the portal renders the flat menu as before.
+  const groupCol = table.header
+    .map(function (h) { return String(h || '').trim().toLowerCase(); })
+    .indexOf('group');
+
+  const items = table.rows
     .filter(function (r) { return String(r[0] || '').trim(); })
     .map(function (r) {
       const name = String(r[0] || '').trim();
       const link = String(r[1] || '').trim();
-      return { name: name, link: link, kind: classifyLink(link), id: extractId(link) };
+      const group = groupCol === -1 ? '' : String(r[groupCol] || '').trim();
+      return { name: name, link: link, kind: classifyLink(link), id: extractId(link), group: group };
     });
 
   // Portal title, from a named range in the same sheet rather than a fixed
@@ -150,10 +162,14 @@ function getMenuTableRows(ss) {
     .getValues();
 
   // The table always has exactly one header row (row 0 of its own range,
-  // confirmed - Home/To-Do List/etc are rows 1-7) - so just drop it.
-  return values.slice(1).filter(function (row) {
-    return String(row[0] || '').trim();
-  });
+  // confirmed - Home/To-Do List/etc are rows 1-7). Returned separately so
+  // callers can find columns by header name.
+  return {
+    header: values[0],
+    rows: values.slice(1).filter(function (row) {
+      return String(row[0] || '').trim();
+    }),
+  };
 }
 
 function classifyLink(link) {

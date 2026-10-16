@@ -376,6 +376,35 @@ old results, so a former member's votes remain in the tallies, the voter list,
 the results emails and the audit. Their access ends the moment you unshare
 the folder, so they can't vote or view anything new.
 
+## Grouping Menu Items Into a Dropdown
+
+A menu with a dozen tabs runs off the edge of the screen. A menu group fixes that by collecting related pages under one heading, so "Freq. Docs" shows as a single item that opens a list of the documents you reach for most. On a computer the list drops down below the heading. On a phone it expands inside the hamburger menu.
+
+The Portal Menu Sheet controls all of it through one optional column called **Group**. The portal finds that column by its header name, so it can sit anywhere in the Menu table.
+
+### How Grouping Works
+
+- A row with a blank Group is a normal top-level menu item, exactly as before.
+- Every row with the same Group value goes under one dropdown with that name.
+- The items inside the dropdown follow the row order in the Sheet.
+- Matching ignores capital letters and stray spaces, so `Freq. Docs` and `freq. docs ` land in the same dropdown.
+- A group with only one item shows as a plain menu item, never as a dropdown holding a single entry.
+- The heading turns active while one of the pages inside it is showing, so you can see where you are without opening the list.
+
+### Here's How: Set Up a Group
+
+1. Add a row to the Menu table where the dropdown should appear in the menu. Put the group name in Menu Name (for example `Freq. Docs`), leave Link blank, and optionally type `Group` in Type.
+2. On each row that belongs in the dropdown, type the same name in the Group column.
+3. To move the whole dropdown along the menu, move the row from step 1. To add or remove a page, add a row with the Group filled in, or clear the Group cell.
+
+**Note:** the row from step 1 only sets the position and the label. If you leave it out, the dropdown still works, and it appears where the first member row sits and takes its label from the Group column.
+
+**Note:** the Type column does nothing here, same as everywhere else in the menu. The portal works out how each row behaves from the Link and the Group.
+
+### Updating the Script
+
+Code.gs reads the Group column, so the change needs the usual manual step: paste `apps-script/Code.gs` into the "Strata Portal Membership" Apps Script project, then **Deploy > Manage deployments > edit > New version**. Until that happens, the portal keeps showing a flat menu, which is harmless.
+
 ## Adding a New Page
 
 A page in this portal is just a tab: one entry in the nav bar, and one panel
