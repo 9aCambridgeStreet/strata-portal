@@ -51,6 +51,9 @@ function doGet(e) {
   if (action === 'fixFolder') {
     return fixFolderAction(e.parameter.folderId);
   }
+  if (action === 'fixFiles') {
+    return fixFilesAction(e.parameter.folderId);
+  }
   return page('<p>Strata ownership audit. Nothing to see here directly, ' +
     'this runs on a schedule and emails the secretary account.</p>');
 }
@@ -60,43 +63,52 @@ function doGet(e) {
 function auditFolderTree() {
   const items = [];
   const root = DriveApp.getFolderById(FOLDER_ID);
-  checkOwner(root, 'Strata Committee Documents', 'folder', items);
-  walkChildren(root, 'Strata Committee Documents', items);
+  const rootItem = checkOwner(root, 'Strata Committee Documents', 'folder', items, null, null);
+  walkChildren(root, 'Strata Committee Documents', items, rootItem);
   return items;
 }
 
-function walkChildren(folder, path, items) {
+// `top` is the outermost wrongly-owned folder we're currently inside (or
+// null). Anything found inside one is tagged coveredBy that folder, because
+// fixing the folder fixes its whole contents in one go - the email only
+// needs a link for the folder, not for each thing inside it.
+function walkChildren(folder, path, items, top) {
   const files = folder.getFiles();
   while (files.hasNext()) {
-    checkOwner(files.next(), path, 'file', items);
+    checkOwner(files.next(), path, 'file', items, top, folder);
   }
   const subfolders = folder.getFolders();
   while (subfolders.hasNext()) {
     const sub = subfolders.next();
     const subPath = path + ' / ' + sub.getName();
-    checkOwner(sub, subPath, 'folder', items);
-    walkChildren(sub, subPath, items);
+    const subItem = checkOwner(sub, subPath, 'folder', items, top, folder);
+    walkChildren(sub, subPath, items, top || subItem);
   }
 }
 
-function checkOwner(item, path, type, items) {
+// Returns the entry it pushed, or null if the item is fine (or missing).
+function checkOwner(item, path, type, items, top, parent) {
   // Drive's folder/file iterators are live queries, not a snapshot - if the
   // tree is actively being changed (e.g. a fix action moving files around)
   // at the exact moment this walk runs, next() can occasionally come back
   // empty. Skip it rather than crash the whole audit; anything genuinely
   // still wrong will show up again on the next run once things settle.
-  if (!item) return;
+  if (!item) return null;
   const owner = item.getOwner();
   const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
-  if (ownerEmail === SECRETARY_EMAIL) return;
-  items.push({
+  if (ownerEmail === SECRETARY_EMAIL) return null;
+  const entry = {
     id: item.getId(),
     name: item.getName(),
     path: path,
     owner: ownerEmail || '(unknown - Drive did not report an owner)',
     url: item.getUrl(),
     type: type,
-  });
+    coveredBy: top ? top.id : null,
+    parentId: parent ? parent.getId() : null,
+  };
+  items.push(entry);
+  return entry;
 }
 
 // --- Checking what's linked from the live nav ---
@@ -208,79 +220,81 @@ function testGetNotifyEmails() {
 
 // Emails the current notify list only when something is actually found, so
 // this stays silent day to day and only lands in the inbox when it matters.
+//
+// One link per wrongly-owned top-level folder (fixes the folder and
+// everything inside it, subfolders included), then one link per ordinary
+// folder holding loose wrongly-owned files (fixes those files together).
+// Anything inside a wrongly-owned folder is covered by that folder's link,
+// so it never gets a link of its own.
 function checkOwnership() {
   const items = auditFolderTree();
   if (!items.length) return;
 
-  // Files first, then folders, always - regardless of nesting. The tree
-  // walk above naturally interleaves a folder with its own children, but
-  // Matt wants every file actioned before any folder gets touched, so this
-  // reorders (a stable partition, not a re-sort - order within each group
-  // is unchanged) before numbering and building the email.
-  const orderedItems = items.filter(function (i) { return i.type === 'file'; })
-    .concat(items.filter(function (i) { return i.type === 'folder'; }));
+  const folders = items.filter(function (i) { return i.type === 'folder' && !i.coveredBy; });
 
-  const menu = getMenuLinkedFileIds();
+  // Loose files, grouped by the folder they sit in (insertion order kept).
+  const groups = [];
+  const groupById = {};
+  items.forEach(function (i) {
+    if (i.type !== 'file' || i.coveredBy) return;
+    if (!groupById[i.parentId]) {
+      groupById[i.parentId] = { folderId: i.parentId, path: i.path, files: [] };
+      groups.push(groupById[i.parentId]);
+    }
+    groupById[i.parentId].files.push(i);
+  });
+
   const scriptUrl = WEB_APP_URL;
-  let fileNumber = 0;
-  let folderNumber = 0;
-  const blocks = orderedItems.map(function (item) {
-    const name = escapeHtml(item.name);
-    const path = escapeHtml(item.path);
-    const owner = escapeHtml(item.owner);
+  let step = 0;
 
-    if (item.type === 'folder') {
-      folderNumber++;
-      const number = folderNumber;
-      const fixUrl = scriptUrl + '?action=fixFolder&folderId=' + encodeURIComponent(item.id);
-      return (
-        '<p><b>Folder ' + number + ': ' + name + '</b><br>' +
-        'Location: ' + path + '<br>' +
-        'Currently owned by: ' + owner + '<br>' +
-        '<a href="' + fixUrl + '">Click here to fix this folder</a><br>' +
-        'Clicking this link renames the old folder to &ldquo;' + name + ' - old&rdquo; and creates ' +
-        'a new folder called &ldquo;' + name + '&rdquo; owned by the secretary account. You then ' +
-        'need to manually move any files from the old folder into the new one, then manually ' +
-        'delete the old folder. Any moved files still owned by another committee member will show ' +
-        'up in a future audit, so don’t worry about ownership of those files for now.</p>'
-      );
-    }
-
-    fileNumber++;
-    const number = fileNumber;
-    const copyUrl = scriptUrl + '?action=copyFile&fileId=' + encodeURIComponent(item.id);
-    const menuName = menu.ok ? menu.ids[item.id] : undefined;
-    let note = '';
-    if (!menu.ok) {
-      note = 'Note: Couldn’t check the portal menu just now. If this file turns out to be ' +
-        'linked there, copy the full path of the file and paste it in the file Portal\\Portal Menu ' +
-        'after taking ownership.<br>';
-    } else if (menuName) {
-      note = 'Note: This file is linked in the portal menu. After taking ownership, copy the full ' +
-        'path of the file and paste it in the file Portal\\Portal Menu so the menu continues to ' +
-        'work.<br>';
-    }
-
+  const folderBlocks = folders.map(function (item) {
+    step++;
+    const inside = items.filter(function (i) { return i.coveredBy === item.id; });
+    const fileCount = inside.filter(function (i) { return i.type === 'file'; }).length;
+    const folderCount = inside.filter(function (i) { return i.type === 'folder'; }).length;
+    const fixUrl = scriptUrl + '?action=fixFolder&folderId=' + encodeURIComponent(item.id);
     return (
-      '<p><b>File ' + number + ': ' + name + '</b><br>' +
-      'Location: ' + path + '<br>' +
-      'Currently owned by: ' + owner + '<br>' +
-      '<a href="' + copyUrl + '">Click here to make a copy owned by the Secretary and delete the ' +
-      'uploaded version</a><br>' +
-      note + '</p>'
+      '<p><b>Step ' + step + ' &ndash; folder: ' + escapeHtml(item.name) + '</b><br>' +
+      'Location: ' + escapeHtml(item.path) + '<br>' +
+      'Currently owned by: ' + escapeHtml(item.owner) + '<br>' +
+      'Also inside it needing the same fix: ' + fileCount + ' file(s), ' + folderCount + ' subfolder(s)<br>' +
+      '<a href="' + fixUrl + '">One click: take ownership of this folder and everything inside it</a><br>' +
+      'This makes a new secretary-owned folder with the same name, copies everything across ' +
+      '(keeping the folder structure), and moves the old versions to Trash. The old folder is ' +
+      'renamed &ldquo;' + escapeHtml(item.name) + ' - old&rdquo; until it is empty.</p>'
+    );
+  });
+
+  const fileBlocks = groups.map(function (g) {
+    step++;
+    const menu = getMenuLinkedFileIds();
+    const names = g.files.map(function (f) {
+      const linked = menu.ok ? menu.ids[f.id] : undefined;
+      return '<li>' + escapeHtml(f.name) + ' (owned by ' + escapeHtml(f.owner) + ')' +
+        (linked ? ' &ndash; linked in the portal menu as &ldquo;' + escapeHtml(linked) + '&rdquo;' : '') +
+        '</li>';
+    }).join('');
+    const fixUrl = scriptUrl + '?action=fixFiles&folderId=' + encodeURIComponent(g.folderId);
+    return (
+      '<p><b>Step ' + step + ' &ndash; ' + g.files.length + ' file(s) in: ' + escapeHtml(g.path) + '</b><br>' +
+      '<ul>' + names + '</ul>' +
+      '<a href="' + fixUrl + '">One click: take ownership of these ' + g.files.length + ' file(s)</a></p>'
     );
   });
 
   const introHtml =
-    '<p>This email is to advise you about any files loaded by a committee member into the ' +
-    'portal. When a committee member loads a file, they retain ownership of that file. The ' +
-    'files need to be owned by the secretary account, not the committee members. This email ' +
-    'steps you through each of those files so that you can take ownership.</p>';
+    '<p>This email is to advise you about files and folders loaded into the portal by a ' +
+    'committee member. When a committee member loads something, they retain ownership of it, and ' +
+    'it needs to be owned by the secretary account instead.</p>' +
+    '<p>Each step below is a single click. Do them in order &ndash; folders first, then loose ' +
+    'files &ndash; and anything inside a folder is handled by that folder&rsquo;s link. If the ' +
+    'result page says a file is linked from the portal menu, follow the instruction on that page.</p>';
 
   MailApp.sendEmail({
     to: getNotifyEmails().join(','),
-    subject: 'Strata portal: ' + items.length + ' item(s) in Committee Documents not owned by the secretary',
-    htmlBody: introHtml + blocks.join(''),
+    subject: 'Strata portal: ' + step + ' step(s) to take ownership of ' + items.length +
+      ' item(s) in Committee Documents',
+    htmlBody: introHtml + folderBlocks.join('') + fileBlocks.join(''),
   });
 }
 
@@ -297,13 +311,13 @@ function escapeHtml(s) {
 // --- The one-click fix ---
 
 function copyFileAction(fileId) {
-  if (!fileId) return page('<p>Missing file ID.</p>');
+  if (!fileId) return expiredPage('<p>The link is missing its file ID.</p>');
 
   let file;
   try {
     file = DriveApp.getFileById(fileId);
   } catch (err) {
-    return page('<p>Could not open that file. It may have been moved or deleted already, or the link is wrong.</p>');
+    return expiredPage('<p>That file could not be opened. It has probably been moved or deleted already.</p>');
   }
 
   if (!isItemInAuditScope(file)) {
@@ -313,7 +327,7 @@ function copyFileAction(fileId) {
   const owner = file.getOwner();
   const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
   if (ownerEmail === SECRETARY_EMAIL) {
-    return page('<p>“' + file.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
+    return expiredPage('<p>“' + escapeHtml(file.getName()) + '” is already owned by the secretary account. Nothing to do.</p>');
   }
 
   // Anyone on the notify list can click this link, and someone else may
@@ -321,7 +335,7 @@ function copyFileAction(fileId) {
   // already fully processed it (the not-linked, auto-trash path). Report
   // that plainly instead of quietly making a second, redundant copy.
   if (file.isTrashed()) {
-    return page('<p>“' + file.getName() + '” has already been actioned, someone already made a ' +
+    return expiredPage('<p>“' + escapeHtml(file.getName()) + '” has already been actioned: someone already made a ' +
       'secretary-owned copy and trashed this original. Nothing more to do here.</p>');
   }
 
@@ -360,7 +374,7 @@ function copyFileAction(fileId) {
     if (sibling.getId() === originalId) continue;
     const siblingOwner = sibling.getOwner();
     if (siblingOwner && siblingOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
-      return page('<p>A secretary-owned copy of <strong>' + escapeHtml(originalName) + '</strong> already exists, ' +
+      return expiredPage('<p>A secretary-owned copy of <strong>' + escapeHtml(originalName) + '</strong> already exists, ' +
         'someone else already actioned this.</p>' +
         '<p><a href="' + parentFolder.getUrl() + '" target="_blank">View the documents in Google Drive</a></p>' +
         '<p>If the original (owned by ' + escapeHtml(ownerEmail) + ') hasn’t been deleted yet, delete it ' +
@@ -429,116 +443,301 @@ function copyFileAction(fileId) {
   return page(html);
 }
 
-// --- The one-click folder fix ---
+// --- The one-click folder and files fixes ---
 
-// A folder can't be copied in one Drive API call the way a file can (there's
-// no "copy this whole tree" method), so instead of a copy this renames the
-// wrongly-owned folder out of the way and creates a same-named replacement
-// that's secretary-owned from birth (createFolder() always makes the new
-// folder owned by whoever the script is running as). The person actioning
-// the email still has to manually move the contents across and delete the
-// old folder - there's no way to reassign ownership of existing files in
-// bulk via the Drive API, only ever create new secretary-owned ones.
+// Drive's API can't hand ownership of someone else's file to this account,
+// only make a secretary-owned copy (and trash the original), so "take
+// ownership of a folder" is done as: rename the old folder "X - old",
+// create a new secretary-owned "X", then walk the old folder and copy or
+// move everything across, recursing into subfolders. Safe to run twice: a
+// repeat click finds the "X - old" / "X" pair and carries on with whatever
+// is still left, which is also how a run that hit Apps Script's time limit
+// is finished off.
+const TIME_BUDGET_MS = 5 * 60 * 1000;
+
+function newReport() {
+  return {
+    started: Date.now(),
+    incomplete: false,
+    copied: 0,
+    moved: 0,
+    foldersMade: 0,
+    trashedOriginals: 0,
+    menuLinked: [],     // { name, menuName, url } - original left alone
+    menuUnchecked: [],  // { name, url } - original left alone
+    failed: [],         // { name, error }
+    oldFoldersLeft: [], // names of "- old" folders that couldn't be trashed
+  };
+}
+
+function timeUp(rep) {
+  if (Date.now() - rep.started > TIME_BUDGET_MS) {
+    rep.incomplete = true;
+    return true;
+  }
+  return false;
+}
+
+function isSecretaryOwned(item) {
+  const owner = item.getOwner();
+  return !!owner && owner.getEmail().toLowerCase() === SECRETARY_EMAIL;
+}
+
 function fixFolderAction(folderId) {
-  if (!folderId) return page('<p>Missing folder ID.</p>');
+  if (!folderId) return expiredPage('<p>The link is missing its folder ID.</p>');
 
   let folder;
   try {
     folder = DriveApp.getFolderById(folderId);
   } catch (err) {
-    return page('<p>Could not open that folder. It may have been moved or deleted already, or the link is wrong.</p>');
+    return expiredPage('<p>That folder could not be opened. It has probably been moved or deleted already.</p>');
+  }
+
+  // A finished fix trashes the emptied "- old" folder, but Drive still lets
+  // getFolderById open a trashed folder, so check for it explicitly.
+  if (folder.isTrashed()) {
+    return expiredPage('<p>“' + escapeHtml(folder.getName()) + '” has already been fixed and removed. ' +
+      'Nothing more to do here.</p>');
   }
 
   if (!isItemInAuditScope(folder)) {
     return page('<p>That folder is not inside the Strata Committee Documents folder, so this tool won’t touch it.</p>');
   }
 
-  const owner = folder.getOwner();
-  const ownerEmail = owner ? owner.getEmail().toLowerCase() : null;
-  if (ownerEmail === SECRETARY_EMAIL) {
-    return page('<p>“' + folder.getName() + '” is already owned by the secretary account. Nothing to do.</p>');
+  if (isSecretaryOwned(folder)) {
+    return expiredPage('<p>“' + escapeHtml(folder.getName()) + '” is already owned by the secretary account. Nothing to do.</p>');
   }
 
-  // Anyone on the notify list can click this link, and someone else may
-  // already have. This link always targets the same folder ID, and a
-  // previous click renames it in place (see below), so a repeat click sees
-  // its own earlier "- old" rename rather than a fresh, unactioned folder.
-  const currentName = folder.getName();
-  if (/ - old$/.test(currentName)) {
-    const cleanName = currentName.replace(/ - old$/, '');
-    return page('<p>This folder has already been actioned, someone already renamed it to “' +
-      currentName + '” and created a new “' + cleanName + '” folder alongside it.</p>' +
-      '<p>Nothing more to do here - if the contents haven’t been moved across and this old ' +
-      'folder deleted yet, finish that manually.</p>');
-  }
-
-  const originalName = folder.getName();
   const parents = folder.getParents();
   const parentFolder = parents.hasNext() ? parents.next() : DriveApp.getFolderById(FOLDER_ID);
 
-  folder.setName(originalName + ' - old');
-  const newFolder = parentFolder.createFolder(originalName);
+  const rep = newReport();
+  const menu = getMenuLinkedFileIds();
+  const newFolder = fixBadFolder(folder, parentFolder, menu, rep);
 
-  // If a file or subfolder inside was fixed via its own "take ownership"
-  // link before this folder was fixed, it's already secretary-owned and can
-  // just be moved straight into the new folder - no need to leave that for
-  // a manual step too. Only items still owned by someone else are left
-  // behind in the renamed old folder, since those still need their own fix.
-  const movedNames = [];
-  const remainingFiles = folder.getFiles();
-  while (remainingFiles.hasNext()) {
-    const f = remainingFiles.next();
-    const fOwner = f.getOwner();
-    if (fOwner && fOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
-      f.moveTo(newFolder);
-      movedNames.push(f.getName());
+  return page(
+    '<p>Folder “' + escapeHtml(newFolder.getName()) + '” and its contents are now owned by the ' +
+    'secretary account.</p>' +
+    '<p><a href="' + newFolder.getUrl() + '" target="_blank">Open the new folder</a></p>' +
+    renderReport(rep)
+  );
+}
+
+// Fixes every wrongly-owned file sitting directly in one folder, in place
+// (copy next to the original, trash the original). Subfolders are left to
+// their own links.
+function fixFilesAction(folderId) {
+  if (!folderId) return expiredPage('<p>The link is missing its folder ID.</p>');
+
+  let folder;
+  try {
+    folder = DriveApp.getFolderById(folderId);
+  } catch (err) {
+    return expiredPage('<p>That folder could not be opened. It has probably been moved or deleted already.</p>');
+  }
+
+  if (folder.isTrashed()) {
+    return expiredPage('<p>“' + escapeHtml(folder.getName()) + '” has already been removed. Nothing more to do here.</p>');
+  }
+
+  if (folder.getId() !== FOLDER_ID && !isItemInAuditScope(folder)) {
+    return page('<p>That folder is not inside the Strata Committee Documents folder, so this tool won’t touch it.</p>');
+  }
+
+  // Nothing wrongly owned left directly in this folder means an earlier click
+  // (or an earlier folder fix) already dealt with them.
+  let anyToFix = false;
+  const check = folder.getFiles();
+  while (check.hasNext() && !anyToFix) {
+    if (!isSecretaryOwned(check.next())) anyToFix = true;
+  }
+  if (!anyToFix) {
+    return expiredPage('<p>There are no files left in “' + escapeHtml(folder.getName()) +
+      '” that need fixing. Someone has already done this.</p>');
+  }
+
+  const rep = newReport();
+  const menu = getMenuLinkedFileIds();
+  fixFilesIn(folder, menu, rep);
+
+  return page(
+    '<p>Checked the files in “' + escapeHtml(folder.getName()) + '”.</p>' +
+    '<p><a href="' + folder.getUrl() + '" target="_blank">View the folder in Google Drive</a></p>' +
+    renderReport(rep)
+  );
+}
+
+// Renames a wrongly-owned folder out of the way (unless an earlier run
+// already did), makes or finds its secretary-owned replacement inside
+// `destParent`, and moves everything across. Returns the replacement.
+function fixBadFolder(oldFolder, destParent, menu, rep) {
+  const name = oldFolder.getName();
+  const alreadyRenamed = / - old$/.test(name);
+  const cleanName = name.replace(/ - old$/, '');
+
+  let newFolder = null;
+  if (alreadyRenamed) {
+    const existing = destParent.getFoldersByName(cleanName);
+    while (existing.hasNext() && !newFolder) {
+      const candidate = existing.next();
+      if (isSecretaryOwned(candidate)) newFolder = candidate;
     }
   }
-  const remainingFolders = folder.getFolders();
-  while (remainingFolders.hasNext()) {
-    const sub = remainingFolders.next();
-    const subOwner = sub.getOwner();
-    if (subOwner && subOwner.getEmail().toLowerCase() === SECRETARY_EMAIL) {
+  if (!newFolder) {
+    if (!alreadyRenamed) oldFolder.setName(name + ' - old');
+    newFolder = destParent.createFolder(cleanName);
+    rep.foldersMade++;
+  }
+
+  // Collect first, then act: the iterators are live and we're moving items
+  // out of the folder as we go.
+  const files = [];
+  const fileIt = oldFolder.getFiles();
+  while (fileIt.hasNext()) files.push(fileIt.next());
+  const subs = [];
+  const subIt = oldFolder.getFolders();
+  while (subIt.hasNext()) subs.push(subIt.next());
+
+  files.forEach(function (f) {
+    if (timeUp(rep)) return;
+    fixFileInto(f, newFolder, menu, rep);
+  });
+
+  subs.forEach(function (sub) {
+    if (timeUp(rep)) return;
+    if (isSecretaryOwned(sub)) {
       sub.moveTo(newFolder);
-      movedNames.push(sub.getName());
+      rep.moved++;
+      fixTreeInPlace(sub, menu, rep);
+    } else {
+      fixBadFolder(sub, newFolder, menu, rep);
     }
-  }
+  });
 
-  const stillInOld = folder.getFiles().hasNext() || folder.getFolders().hasNext();
+  if (!rep.incomplete) trashIfEmpty(oldFolder, rep);
+  return newFolder;
+}
 
-  let html =
-    '<p>Renamed the old folder to “' + originalName + ' - old” and created a new folder called “' +
-    originalName + '”, owned by the secretary account.</p>' +
-    '<p><a href="' + newFolder.getUrl() + '" target="_blank">Open the new folder</a></p>';
-
-  if (movedNames.length) {
-    html += '<p>Already secretary-owned, so moved straight across: ' +
-      movedNames.map(escapeHtml).join(', ') + '.</p>';
-  }
-
-  if (stillInOld) {
-    html += '<p><strong>Next steps:</strong> everything remaining in “' + originalName +
-      ' - old” is still owned by someone else. Fix each of those individually (their own audit ' +
-      'entries have their own links), they’ll land straight in the new folder the same way once ' +
-      'fixed. Once “' + originalName + ' - old” is empty, delete it.</p>';
-  } else {
-    // Worth attempting, same as the file trash step, even though the old
-    // folder's owner hasn't changed and this may well hit the same
-    // permission wall - a graceful fallback costs nothing if it does.
-    let trashError = null;
-    try {
-      Drive.Files.update({ trashed: true }, folder.getId());
-    } catch (err) {
-      trashError = err.message;
+// Fixes wrongly-owned files and folders inside an already secretary-owned
+// folder, where they sit.
+function fixTreeInPlace(folder, menu, rep) {
+  fixFilesIn(folder, menu, rep);
+  const subs = [];
+  const subIt = folder.getFolders();
+  while (subIt.hasNext()) subs.push(subIt.next());
+  subs.forEach(function (sub) {
+    if (timeUp(rep)) return;
+    if (isSecretaryOwned(sub)) {
+      fixTreeInPlace(sub, menu, rep);
+    } else {
+      fixBadFolder(sub, folder, menu, rep);
     }
-    html += trashError
-      ? '<p>“' + originalName + ' - old” is now empty, but couldn’t be trashed automatically (' +
-        trashError + '). Delete it yourself in Drive.</p>'
-      : '<p>“' + originalName + ' - old” was empty, so it’s been trashed automatically, ' +
-        'recoverable from Drive’s Trash for about 30 days if that turns out to be wrong.</p>';
+  });
+}
+
+function fixFilesIn(folder, menu, rep) {
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) files.push(it.next());
+  files.forEach(function (f) {
+    if (timeUp(rep)) return;
+    if (isSecretaryOwned(f)) return;
+    fixFileInto(f, folder, menu, rep);
+  });
+}
+
+// Gets one file into `target` owned by the secretary: moves it if it's
+// already secretary-owned, otherwise makes a copy there and trashes the
+// original - except when the original is linked from the live portal menu
+// (or the menu couldn't be checked), which is left alone and reported.
+function fixFileInto(file, target, menu, rep) {
+  const name = file.getName();
+  const id = file.getId();
+
+  if (isSecretaryOwned(file)) {
+    file.moveTo(target);
+    rep.moved++;
+    return;
   }
 
-  return page(html);
+  try {
+    // A copy may already exist from an earlier, interrupted run.
+    let copy = null;
+    const existing = target.getFilesByName(name);
+    while (existing.hasNext() && !copy) {
+      const c = existing.next();
+      if (c.getId() !== id && isSecretaryOwned(c)) copy = c;
+    }
+    if (!copy) {
+      copy = file.makeCopy(name, target);
+      rep.copied++;
+    }
+
+    const menuName = menu.ok ? menu.ids[id] : undefined;
+    if (!menu.ok) {
+      rep.menuUnchecked.push({ name: name, url: copy.getUrl() });
+    } else if (menuName) {
+      rep.menuLinked.push({ name: name, menuName: menuName, url: copy.getUrl() });
+    } else {
+      // Advanced Drive Service rather than DriveApp: see the longer note
+      // in copyFileAction about DriveApp.setTrashed() refusing files the
+      // secretary account doesn't own.
+      Drive.Files.update({ trashed: true }, id);
+      rep.trashedOriginals++;
+    }
+  } catch (err) {
+    rep.failed.push({ name: name, error: err.message });
+  }
+}
+
+function trashIfEmpty(folder, rep) {
+  if (folder.getFiles().hasNext() || folder.getFolders().hasNext()) {
+    rep.oldFoldersLeft.push(folder.getName());
+    return;
+  }
+  try {
+    Drive.Files.update({ trashed: true }, folder.getId());
+  } catch (err) {
+    rep.oldFoldersLeft.push(folder.getName());
+  }
+}
+
+function renderReport(rep) {
+  let html = '<p>Copied ' + rep.copied + ' file(s) into secretary-owned versions, moved ' + rep.moved +
+    ' item(s) that were already secretary-owned, trashed ' + rep.trashedOriginals + ' original(s). ' +
+    'Trashed items are recoverable from Drive’s Trash for about 30 days.</p>';
+
+  if (rep.incomplete) {
+    html += '<p><strong>This hit the time limit before finishing.</strong> Click the same link in ' +
+      'the email again and it will carry on where it left off.</p>';
+  }
+  if (rep.menuLinked.length) {
+    html += '<p><strong>Action needed &ndash; linked from the portal menu.</strong> The originals ' +
+      'below were left in place so the menu doesn’t break. For each, update its Link in the Portal ' +
+      'Menu Sheet to the new copy’s URL, then trash the original:</p><ul>' +
+      rep.menuLinked.map(function (m) {
+        return '<li>' + escapeHtml(m.name) + ' (menu item “' + escapeHtml(m.menuName) + '”)<br>' +
+          '<code>' + escapeHtml(m.url) + '</code></li>';
+      }).join('') + '</ul>';
+  }
+  if (rep.menuUnchecked.length) {
+    html += '<p><strong>Couldn’t check the Portal Menu Sheet just now</strong>, so these originals ' +
+      'were left alone. Check by hand, then trash them yourself if they aren’t linked:</p><ul>' +
+      rep.menuUnchecked.map(function (m) {
+        return '<li>' + escapeHtml(m.name) + '<br><code>' + escapeHtml(m.url) + '</code></li>';
+      }).join('') + '</ul>';
+  }
+  if (rep.failed.length) {
+    html += '<p><strong>These could not be fully processed:</strong></p><ul>' +
+      rep.failed.map(function (f) {
+        return '<li>' + escapeHtml(f.name) + ': ' + escapeHtml(f.error) + '</li>';
+      }).join('') + '</ul>';
+  }
+  if (rep.oldFoldersLeft.length) {
+    html += '<p>These old folders still need deleting by hand in Drive (not empty, or Drive wouldn’t ' +
+      'let the script trash them): ' + rep.oldFoldersLeft.map(escapeHtml).join(', ') + '.</p>';
+  }
+  return html;
 }
 
 // Confirms a file or folder is actually somewhere under FOLDER_ID before
@@ -567,6 +766,14 @@ function isItemInAuditScope(item) {
     depth++;
   }
   return false;
+}
+
+// Shown whenever a link in an email no longer applies (item already fixed,
+// moved, trashed or deleted, or a damaged link), so a stale link says so
+// plainly instead of looking broken. `detailHtml` explains why.
+function expiredPage(detailHtml) {
+  return page('<h2 style="margin-top:0;">Link expired</h2>' +
+    '<p>This link is no longer valid.</p>' + (detailHtml || ''));
 }
 
 function page(bodyHtml) {
