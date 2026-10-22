@@ -183,6 +183,19 @@ which one is now the real one. Trashing isn't a permanent delete, it's
 recoverable from Drive's own Trash for about 30 days if that ever turns out
 to be the wrong call.
 
+**One click per folder (changed 21 October 2026).** The email no longer
+lists every file separately. It gives one link per wrongly-owned top-level
+folder ("take ownership of this folder and everything inside it"), then one
+link per ordinary folder holding loose wrongly-owned files. The folder link
+renames the old folder "X - old", creates a new secretary-owned "X", copies
+every file across (keeping subfolders), trashes the originals and trashes
+the old folder once empty. Drive can't transfer ownership to another
+account through the API, so copying is the only way to do this in bulk. A
+run is limited to about 5 minutes (Apps Script's limit); if a very large
+folder hits it, the result page says so and clicking the same link again
+carries on where it stopped. Files linked from the portal menu are still
+left in place and listed on the result page for a manual swap, as below.
+
 **The exception is a file that's currently a nav tab.** The portal's nav
 bar is built entirely from the "Portal Menu" Sheet (the same one Code.gs's
 `getMenu()` serves to the portal, one row per tab, a Link column pointing
