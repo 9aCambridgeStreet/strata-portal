@@ -392,53 +392,8 @@ function copyFileAction(fileId) {
   // Shown whenever the original is left in place; the folder link above is where to delete it.
   const originalLink = '<p>The one to delete is the copy owned by ' + ownerEmail + '.</p>';
 
-  // Check the live Portal Menu Sheet before trashing anything - trashing a
-  // file that's currently a nav tab would break that tab's embed. Fail
-  // SAFE if the Sheet can't be read: leave the original alone rather than
-  // risk trashing something that's actually still live in the menu.
-  const menu = getMenuLinkedFileIds();
-  const menuName = menu.ok ? menu.ids[originalId] : undefined;
-
-  if (!menu.ok) {
-    html += '<p><strong>Could not check the Portal Menu Sheet just now</strong>, so the original ' +
-      'has been left alone rather than risk trashing something still linked from the nav. Check ' +
-      'by hand, then trash it yourself in Drive once you’re sure it’s safe to.</p>' + originalLink;
-  } else if (menuName) {
-    html += '<p><strong>Action needed:</strong> this file is linked from the main menu as “' +
-      menuName + '”, so the original has been left alone rather than trashed. Update that ' +
-      'row’s Link in the Portal Menu Sheet to the new copy’s URL below, then trash the ' +
-      'original yourself once that change is live:</p>' +
-      '<p><code>' + copy.getUrl() + '</code></p>' + originalLink;
-  } else {
-    // DriveApp.setTrashed() has a known, more conservative internal check
-    // than the real Drive API for files the caller doesn't own - confirmed
-    // live: getAccess() reported EDIT for the secretary account, which
-    // should be plenty to trash a file, yet DriveApp still refused with
-    // "Access denied". Calling the Advanced Drive Service directly instead
-    // (the same underlying API the Drive web UI itself uses, where trashing
-    // an Edit-access file someone else owns works fine) avoids that.
-    let trashError = null;
-    try {
-      Drive.Files.update({ trashed: true }, originalId);
-    } catch (err) {
-      trashError = err.message;
-    }
-    if (trashError) {
-      let secretaryAccess;
-      try {
-        secretaryAccess = file.getAccess(SECRETARY_EMAIL).toString();
-      } catch (accessErr) {
-        secretaryAccess = 'unknown';
-      }
-      html += '<p><strong>Could not trash the original</strong> (still owned by ' + ownerEmail +
-        '): ' + trashError + ' (secretary account access: ' + secretaryAccess + '). Move it to ' +
-        'Trash yourself in Drive so there aren’t two live copies.</p>' + originalLink;
-    } else {
-      html += '<p>The original (previously owned by ' + ownerEmail + ') has been moved to Trash, ' +
-        'so only the new copy is visible in the folder now. It’s recoverable from Drive’s Trash ' +
-        'for about 30 days if that turns out to be wrong.</p>';
-    }
-  }
+  // The original is never trashed or changed by this tool; delete it by hand once the copy is checked.
+  html += originalLink;
 
   return page(html);
 }
@@ -605,13 +560,7 @@ function fixBadFolder(oldFolder, destParent, menu, rep) {
 
   subs.forEach(function (sub) {
     if (timeUp(rep)) return;
-    if (isSecretaryOwned(sub)) {
-      sub.moveTo(newFolder);
-      rep.moved++;
-      fixTreeInPlace(sub, menu, rep);
-    } else {
-      fixBadFolder(sub, newFolder, menu, rep);
-    }
+    fixBadFolder(sub, newFolder, menu, rep);
   });
 
   if (!rep.incomplete) trashIfEmpty(oldFolder, rep);
@@ -646,19 +595,11 @@ function fixFilesIn(folder, menu, rep) {
   });
 }
 
-// Gets one file into `target` owned by the secretary: moves it if it's
-// already secretary-owned, otherwise makes a copy there and trashes the
-// original - except when the original is linked from the live portal menu
-// (or the menu couldn't be checked), which is left alone and reported.
+// Gets one file into `target` as a secretary-owned copy. Only ever copies:
+// the original is never moved, trashed or otherwise changed.
 function fixFileInto(file, target, menu, rep) {
   const name = file.getName();
   const id = file.getId();
-
-  if (isSecretaryOwned(file)) {
-    file.moveTo(target);
-    rep.moved++;
-    return;
-  }
 
   try {
     // A copy may already exist from an earlier, interrupted run.
@@ -672,34 +613,15 @@ function fixFileInto(file, target, menu, rep) {
       copy = file.makeCopy(name, target);
       rep.copied++;
     }
-
-    const menuName = menu.ok ? menu.ids[id] : undefined;
-    if (!menu.ok) {
-      rep.menuUnchecked.push({ name: name, url: copy.getUrl() });
-    } else if (menuName) {
-      rep.menuLinked.push({ name: name, menuName: menuName, url: copy.getUrl() });
-    } else {
-      // Advanced Drive Service rather than DriveApp: see the longer note
-      // in copyFileAction about DriveApp.setTrashed() refusing files the
-      // secretary account doesn't own.
-      Drive.Files.update({ trashed: true }, id);
-      rep.trashedOriginals++;
-    }
   } catch (err) {
     rep.failed.push({ name: name, error: err.message });
   }
 }
 
+// The old folder is never trashed by the script; it's listed so it can be
+// deleted by hand once the copies have been checked.
 function trashIfEmpty(folder, rep) {
-  if (folder.getFiles().hasNext() || folder.getFolders().hasNext()) {
-    rep.oldFoldersLeft.push(folder.getName());
-    return;
-  }
-  try {
-    Drive.Files.update({ trashed: true }, folder.getId());
-  } catch (err) {
-    rep.oldFoldersLeft.push(folder.getName());
-  }
+  rep.oldFoldersLeft.push(folder.getName());
 }
 
 function renderReport(rep) {
