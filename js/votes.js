@@ -379,15 +379,24 @@ function votesFlash(text) {
 }
 
 function votesForm() {
-  const defaultClose = new Date(Date.now() + 7 * 86400000);
-  defaultClose.setMinutes(defaultClose.getMinutes() - defaultClose.getTimezoneOffset());
+  // Default voting period is 3 days; the selector below swaps to 7 days.
+  const closeIn = (days) => {
+    const d = new Date(Date.now() + days * 86400000);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
   const field = (label, input) => el('label', { class: 'votes-field' }, [el('span', { text: label }), input]);
 
   const title = el('input', { type: 'text', maxlength: '200', required: 'required' });
   const description = el('textarea', { rows: '5', maxlength: '5000' });
   const docLink = el('input', { type: 'url', placeholder: 'https://docs.google.com/…' });
   const files = el('input', { type: 'file', multiple: 'multiple' });
-  const closes = el('input', { type: 'datetime-local', value: defaultClose.toISOString().slice(0, 16) });
+  const closes = el('input', { type: 'datetime-local', value: closeIn(3) });
+  const period = el('select', {}, [
+    el('option', { value: '3', selected: 'selected', text: '3 days (default)' }),
+    el('option', { value: '7', text: '7 days' }),
+  ]);
+  period.addEventListener('change', () => { closes.value = closeIn(Number(period.value)); });
 
   const form = el('form', { class: 'votes-form' }, [
     el('h2', { class: 'votes-heading', text: 'New proposal' }),
@@ -395,7 +404,8 @@ function votesForm() {
     field('What are we voting on?', description),
     field('Supporting document (optional)', docLink),
     field('Attach files (optional, emailed to the committee, up to 5 files)', files),
-    field('Voting closes (Sydney time)', closes),
+    field('Voting period', period),
+    field('Voting closes (Sydney time, you can adjust)', closes),
     el('p', { class: 'vote-hint', text: 'Everyone on the committee is emailed. Voting is by named ballot, simple majority of those voting, abstentions not counted.' }),
     el('button', { type: 'submit', class: 'votes-btn primary', text: 'Put to a vote' }),
   ]);
