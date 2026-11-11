@@ -112,7 +112,7 @@ depends on any individual member's accounts.
 | --- | --- |
 | Website code | GitHub account `9aCambridgeStreet`, repo `strata-portal` (push to `main` redeploys) |
 | Google sign-in client | Google Cloud project `strata-committee-portal`, client `StrataAuth`, published (not in Testing) |
-| Membership script | Apps Script project "Strata Portal Membership" in the secretary's Drive |
+| Membership script | Apps Script project "Strata Portal" in the secretary's Drive |
 | Chat-history viewer script | Separate Apps Script project (see "Embedding a Plain HTML File" below), one per plain-HTML page |
 | Ownership audit script | Separate Apps Script project "Strata Ownership Audit" (see "Ownership Audit" below) |
 | Voting script and ledger | Separate Apps Script project "Strata Voting" and the "Strata Votes (Ledger)" sheet (see "Committee Voting" below) |
@@ -403,7 +403,7 @@ The Portal Menu Sheet controls all of it through one optional column called **Gr
 
 ### Updating the Script
 
-Code.gs reads the Group column, so the change needs the usual manual step: paste `apps-script/Code.gs` into the "Strata Portal Membership" Apps Script project, then **Deploy > Manage deployments > edit > New version**. Until that happens, the portal keeps showing a flat menu, which is harmless.
+Code.gs reads the Group column, so the change needs the usual manual step: paste `apps-script/Code.gs` into the "Strata Portal" Apps Script project, then **Deploy > Manage deployments > edit > New version**. Until that happens, the portal keeps showing a flat menu, which is harmless.
 
 ## Adding a New Page
 
