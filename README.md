@@ -250,9 +250,12 @@ redeployed as a new version, `WEB_APP_URL` needs updating to match.
 
 The Votes tab lets any committee member put a proposal to a vote, and lets
 every member cast For, Against or Abstain. The ballot is **named**, so
-everyone can see how everyone voted, and the result is a **simple majority
-of those voting**, with abstentions counted as neither for nor against. A tie
-does not pass.
+everyone can see how everyone voted, and a proposal passes only when a
+**majority of the whole committee** votes For (for example 3 of 5). Against,
+Abstain and not voting all count the same: they are not a For. The committee
+size is the number of voting members with access to the committee folder,
+and is recorded in the ledger when a vote closes so later membership changes
+never rewrite an old result.
 
 ### How It Works
 

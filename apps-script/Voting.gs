@@ -355,17 +355,37 @@ function buildState(entries) {
         p.closedBy = e.actor;
         p.closeHash = e.hash;
         p.closeSeq = e.seq;
+        try {
+          p.closeData = JSON.parse(e.data);
+        } catch (err) {
+          p.closeData = {};
+        }
       }
     }
   });
   return { proposals: proposals, order: order };
 }
 
+// Voting members on the committee right now: everyone with access to the
+// committee folder, less the shared accounts that cannot vote.
+function committeeSize() {
+  const voters = memberEmails().filter(canVote);
+  return voters.filter(function (e, i) { return voters.indexOf(e) === i; }).length;
+}
+
+// A proposal passes only when a majority of the WHOLE committee votes For
+// (e.g. 3 of a 5-member committee), not just more For than Against. Against,
+// Abstain and not voting all count the same: they are not a For. A closed
+// proposal keeps the committee size recorded when it closed, so later
+// membership changes never rewrite an old result; proposals closed before the
+// size was recorded use today's committee.
 function tally(proposal) {
   const t = { FOR: 0, AGAINST: 0, ABSTAIN: 0 };
   Object.keys(proposal.votes).forEach(function (v) { t[proposal.votes[v].choice]++; });
-  // Simple majority of those voting; abstentions don't count either way.
-  t.outcome = t.FOR > t.AGAINST ? 'PASSED' : (t.FOR < t.AGAINST ? 'NOT PASSED' : 'TIED (NOT PASSED)');
+  const recorded = proposal.closeData && Number(proposal.closeData.committee);
+  t.committee = recorded > 0 ? recorded : committeeSize();
+  t.needed = Math.floor(t.committee / 2) + 1;
+  t.outcome = t.FOR >= t.needed ? 'PASSED' : 'NOT PASSED';
   return t;
 }
 
@@ -611,6 +631,7 @@ function appendClose(proposal, actor, evidence) {
   const t = tally(proposal);
   return appendEntry('CLOSE', proposal.id, actor, evidence, JSON.stringify({
     for: t.FOR, against: t.AGAINST, abstain: t.ABSTAIN, outcome: t.outcome,
+    committee: t.committee, needed: t.needed,
   }));
 }
 
@@ -684,7 +705,8 @@ function closedEmail(c) {
     (c.description ? 'Proposal:\n' + c.description + '\n\n' : '') +
     (c.docLink ? 'Supporting document: ' + c.docLink + '\n\n' : '') +
     'Result: ' + c.outcome + '\n' +
-    'For: ' + t.FOR + '   Against: ' + t.AGAINST + '   Abstain: ' + t.ABSTAIN + '\n\n' +
+    'For: ' + t.FOR + '   Against: ' + t.AGAINST + '   Abstain: ' + t.ABSTAIN + '\n' +
+    'To pass, ' + t.needed + ' of the ' + t.committee + ' committee members must vote For.\n\n' +
     'How each member voted:\n' +
     (c.voters.length ? c.voters.map(function (v) { return '* ' + v.name + ': ' + v.choice + (v.comment ? ' (comment: ' + v.comment + ')' : '') + '\n'; }).join('') : '* (no votes)\n') +
     '\n' + perm + '\n\n' +
@@ -701,7 +723,8 @@ function closedEmail(c) {
     (c.description ? '<p style="white-space:pre-wrap">' + esc(c.description) + '</p>' : '') +
     (c.docLink ? '<p>Supporting document: <a href="' + esc(c.docLink) + '" style="color:#1a0dab">' + esc(c.docLink) + '</a></p>' : '') +
     '<p><strong>Result:</strong> ' + esc(c.outcome) + '<br>' +
-    'For: ' + t.FOR + ' &nbsp; Against: ' + t.AGAINST + ' &nbsp; Abstain: ' + t.ABSTAIN + '</p>' +
+    'For: ' + t.FOR + ' &nbsp; Against: ' + t.AGAINST + ' &nbsp; Abstain: ' + t.ABSTAIN + '<br>' +
+    'To pass, ' + t.needed + ' of the ' + t.committee + ' committee members must vote For.</p>' +
     '<p>How each member voted:</p>' +
     '<ul>' + (c.voters.length
       ? c.voters.map(function (v) { return '<li>' + esc(v.name) + ': ' + esc(v.choice) + (v.comment ? '<br><span style="white-space:pre-wrap;color:#555">Comment: ' + esc(v.comment) + '</span>' : '') + '</li>'; }).join('')
@@ -717,8 +740,9 @@ function closedEmail(c) {
 // --- Summary of past votes ---
 
 function resultText(t) {
-  const word = t.outcome === 'PASSED' ? 'Passed' : (t.outcome === 'NOT PASSED' ? 'Not passed' : 'Tied (not passed)');
-  return word + ' ' + t.FOR + '/' + t.AGAINST + (t.ABSTAIN ? ' (' + t.ABSTAIN + ' abstained)' : '');
+  const word = t.outcome === 'PASSED' ? 'Passed' : 'Not passed';
+  return word + ' ' + t.FOR + '/' + t.AGAINST + (t.ABSTAIN ? ' (' + t.ABSTAIN + ' abstained)' : '') +
+    (t.needed ? ', ' + t.needed + ' of ' + t.committee + ' needed' : '');
 }
 
 function summaryUrl() {
@@ -914,7 +938,7 @@ function testClosedEmail() {
     docLink: '',
     createdByName: 'Test Sender',
     outcome: 'PASSED',
-    tally: { FOR: 3, AGAINST: 1, ABSTAIN: 0 },
+    tally: { FOR: 3, AGAINST: 1, ABSTAIN: 0, committee: 5, needed: 3 },
     voters: [
       { name: 'Matt', choice: 'FOR' }, { name: 'Kiarnie', choice: 'FOR' },
       { name: 'Kristy', choice: 'FOR' }, { name: 'Paul', choice: 'AGAINST' },

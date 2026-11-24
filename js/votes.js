@@ -267,7 +267,7 @@ function proposalCard(p) {
   if (p.docLink) card.append(el('p', {}, [el('a', { href: p.docLink, target: '_blank', rel: 'noopener', text: 'Read the supporting document ↗' })]));
   card.append(attachmentsBlock(p, isOpen));
 
-  const counts = el('p', { class: 'vote-counts', text: `For ${t.FOR} · Against ${t.AGAINST} · Abstain ${t.ABSTAIN}` });
+  const counts = el('p', { class: 'vote-counts', text: `For ${t.FOR} · Against ${t.AGAINST} · Abstain ${t.ABSTAIN}` + (t.needed ? ` · ${t.needed} of ${t.committee} For votes needed to pass` : '') });
   card.append(counts);
   if (!isOpen) card.append(el('p', { class: 'vote-result ' + (t.outcome === 'PASSED' ? 'passed' : 'failed'), text: t.outcome }));
 
@@ -406,7 +406,7 @@ function votesForm() {
     field('Attach files (optional, emailed to the committee, up to 5 files)', files),
     field('Voting period', period),
     field('Voting closes (Sydney time, you can adjust)', closes),
-    el('p', { class: 'vote-hint', text: 'Everyone on the committee is emailed. Voting is by named ballot, simple majority of those voting, abstentions not counted.' }),
+    el('p', { class: 'vote-hint', text: 'Everyone on the committee is emailed. Voting is by named ballot. A proposal passes only if a majority of the whole committee votes For.' }),
     el('button', { type: 'submit', class: 'votes-btn primary', text: 'Put to a vote' }),
   ]);
   form.addEventListener('submit', async (e) => {
